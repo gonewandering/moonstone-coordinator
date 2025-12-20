@@ -48,7 +48,7 @@ else
     apt-get install -y \
         python3-pip \
         python3-venv \
-        chromium-browser \
+        chromium \
         xserver-xorg \
         x11-xserver-utils \
         xinit \
@@ -125,7 +125,7 @@ xset s noblank
 unclutter -idle 0.5 -root &
 
 # Start Chromium in kiosk mode
-chromium-browser \
+chromium \
     --kiosk \
     --noerrdialogs \
     --disable-infobars \
@@ -204,7 +204,7 @@ xset s noblank
 unclutter -idle 0.5 -root &
 
 # Start Chromium in kiosk mode
-exec chromium-browser \
+exec chromium \
     --kiosk \
     --noerrdialogs \
     --disable-infobars \

@@ -26,7 +26,7 @@ apt-get install -y \
     xserver-xorg \
     xinit \
     x11-xserver-utils \
-    chromium-browser \
+    chromium \
     unclutter \
     openbox
 
