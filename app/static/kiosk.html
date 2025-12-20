@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Air Quality</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            background: #1a1a2e;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #fff;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 8px;
+            gap: 6px;
+        }
+        .metric {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            background: #16213e;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        .bar {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            transition: width 0.5s ease, background 0.5s ease;
+            opacity: 0.9;
+        }
+        .bar.good {
+            background: linear-gradient(90deg, #059669, #10b981);
+        }
+        .bar.moderate {
+            background: linear-gradient(90deg, #d97706, #f59e0b);
+        }
+        .bar.poor {
+            background: linear-gradient(90deg, #dc2626, #ef4444);
+        }
+        .content {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 0 12px;
+        }
+        .label {
+            font-size: 18px;
+            font-weight: 600;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        .value {
+            font-size: 28px;
+            font-weight: 700;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        .unit {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-left: 4px;
+        }
+        .status {
+            position: fixed;
+            bottom: 4px;
+            right: 8px;
+            font-size: 10px;
+            opacity: 0.5;
+        }
+        .no-data {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #666;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="container">
+        <div class="no-data">Connecting...</div>
+    </div>
+    <div class="status" id="status">--</div>
+
+    <script>
+        const wsUrl = `ws://${window.location.host}/ws`;
+        let ws;
+
+        // Store latest readings per sensor
+        const sensorReadings = new Map();
+
+        // Metric definitions
+        const metrics = [
+            { key: 'pm2_5', label: 'PM2.5', unit: 'µg/m³', norm: 'pm2_5_norm', max: 500 },
+            { key: 'gas_raw', label: 'Gas', unit: '', norm: 'gas_norm', max: 4095 },
+            { key: 'temp', label: 'Temp', unit: '°F', isTemp: true },
+            { key: 'humidity', label: 'Humidity', unit: '%', max: 100 }
+        ];
+
+        function getQualityClass(norm) {
+            if (norm < 0.25) return 'good';
+            if (norm < 0.5) return 'moderate';
+            return 'poor';
+        }
+
+        function calculateAverages() {
+            const totals = {};
+            const counts = {};
+
+            metrics.forEach(m => {
+                totals[m.key] = 0;
+                counts[m.key] = 0;
+                if (m.norm) {
+                    totals[m.norm] = 0;
+                    counts[m.norm] = 0;
+                }
+            });
+
+            sensorReadings.forEach(reading => {
+                metrics.forEach(m => {
+                    if (reading[m.key] !== undefined && reading[m.key] !== null) {
+                        totals[m.key] += reading[m.key];
+                        counts[m.key]++;
+                    }
+                    if (m.norm && reading[m.norm] !== undefined && reading[m.norm] !== null) {
+                        totals[m.norm] += reading[m.norm];
+                        counts[m.norm]++;
+                    }
+                });
+            });
+
+            const averages = {};
+            metrics.forEach(m => {
+                if (counts[m.key] > 0) {
+                    averages[m.key] = totals[m.key] / counts[m.key];
+                }
+                if (m.norm && counts[m.norm] > 0) {
+                    averages[m.norm] = totals[m.norm] / counts[m.norm];
+                }
+            });
+
+            return averages;
+        }
+
+        function render() {
+            const container = document.getElementById('container');
+            const averages = calculateAverages();
+
+            // Filter to only metrics with data
+            const activeMetrics = metrics.filter(m => averages[m.key] !== undefined);
+
+            if (activeMetrics.length === 0) {
+                container.innerHTML = '<div class="no-data">Waiting for sensor data...</div>';
+                return;
+            }
+
+            let html = '';
+            activeMetrics.forEach(m => {
+                let value = averages[m.key];
+                let norm;
+                let displayValue;
+
+                if (m.isTemp) {
+                    // Convert C to F
+                    displayValue = (value * 9/5 + 32).toFixed(0);
+                    // Normalize temp: 60°F = good, 80°F = moderate, 90°F+ = poor
+                    const tempF = value * 9/5 + 32;
+                    norm = Math.max(0, Math.min(1, (tempF - 60) / 40));
+                } else if (m.norm && averages[m.norm] !== undefined) {
+                    norm = averages[m.norm];
+                    displayValue = Math.round(value);
+                } else if (m.max) {
+                    norm = value / m.max;
+                    displayValue = Math.round(value);
+                } else {
+                    norm = 0;
+                    displayValue = Math.round(value);
+                }
+
+                const barWidth = Math.min(Math.max(norm * 100, 2), 100);
+                const qualityClass = getQualityClass(norm);
+
+                html += `
+                    <div class="metric">
+                        <div class="bar ${qualityClass}" style="width: ${barWidth}%"></div>
+                        <div class="content">
+                            <span class="label">${m.label}</span>
+                            <span class="value">${displayValue}<span class="unit">${m.unit}</span></span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function handleReading(data) {
+            sensorReadings.set(data.device, data);
+            render();
+            document.getElementById('status').textContent =
+                `${sensorReadings.size} sensor${sensorReadings.size !== 1 ? 's' : ''}`;
+        }
+
+        function connect() {
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                document.getElementById('status').textContent = 'Connected';
+            };
+
+            ws.onclose = () => {
+                document.getElementById('status').textContent = 'Disconnected';
+                setTimeout(connect, 2000);
+            };
+
+            ws.onerror = () => ws.close();
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                if (message.type === 'reading') {
+                    handleReading(message.data);
+                }
+            };
+        }
+
+        // Load initial data
+        async function loadInitialData() {
+            try {
+                const response = await fetch('/api/sensors');
+                const data = await response.json();
+                data.sensors.forEach(sensor => {
+                    if (sensor.last_reading) {
+                        sensorReadings.set(sensor.device, sensor.last_reading);
+                    }
+                });
+                render();
+            } catch (e) {
+                console.error('Failed to load initial data:', e);
+            }
+        }
+
+        loadInitialData();
+        connect();
+    </script>
+</body>
+</html>
