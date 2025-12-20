@@ -21,6 +21,15 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Detect if running Desktop or Lite
+IS_DESKTOP=false
+if systemctl is-active --quiet lightdm || systemctl is-enabled --quiet lightdm 2>/dev/null; then
+    IS_DESKTOP=true
+    echo "Detected: Raspberry Pi OS Desktop"
+else
+    echo "Detected: Raspberry Pi OS Lite"
+fi
+
 # Update system
 echo ">>> Updating system packages..."
 apt-get update
@@ -28,18 +37,29 @@ apt-get upgrade -y
 
 # Install required packages
 echo ">>> Installing required packages..."
-apt-get install -y \
-    python3-pip \
-    python3-venv \
-    chromium-browser \
-    xserver-xorg \
-    x11-xserver-utils \
-    xinit \
-    openbox \
-    unclutter \
-    libatlas-base-dev \
-    bluez \
-    bluetooth
+if [ "$IS_DESKTOP" = true ]; then
+    apt-get install -y \
+        python3-pip \
+        python3-venv \
+        unclutter \
+        libatlas-base-dev \
+        bluez \
+        bluetooth \
+        xdotool
+else
+    apt-get install -y \
+        python3-pip \
+        python3-venv \
+        chromium-browser \
+        xserver-xorg \
+        x11-xserver-utils \
+        xinit \
+        openbox \
+        unclutter \
+        libatlas-base-dev \
+        bluez \
+        bluetooth
+fi
 
 # Create Python virtual environment and install coordinator
 echo ">>> Setting up Python environment..."
@@ -78,18 +98,93 @@ systemctl daemon-reload
 systemctl enable centerville-coordinator
 systemctl start centerville-coordinator
 
-# Configure auto-login to console
-echo ">>> Configuring auto-login..."
-mkdir -p /etc/systemd/system/getty@tty1.service.d
-cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
+if [ "$IS_DESKTOP" = true ]; then
+    # ============================================
+    # DESKTOP VERSION - Use LXDE autostart
+    # ============================================
+    echo ">>> Configuring Desktop kiosk mode..."
+
+    # Create kiosk startup script
+    cat > /home/$KIOSK_USER/start-kiosk.sh << 'KIOSKEOF'
+#!/bin/bash
+# Centerville Kiosk Startup Script (Desktop version)
+
+# Wait for coordinator to be ready
+echo "Waiting for coordinator service..."
+for i in {1..30}; do
+    if curl -s http://localhost:8000/api/status > /dev/null 2>&1; then
+        echo "Coordinator is ready!"
+        break
+    fi
+    sleep 1
+done
+
+# Disable screen blanking
+xset s off
+xset -dpms
+xset s noblank
+
+# Hide mouse cursor
+unclutter -idle 0.5 -root &
+
+# Start Chromium in kiosk mode
+chromium-browser \
+    --kiosk \
+    --noerrdialogs \
+    --disable-infobars \
+    --disable-session-crashed-bubble \
+    --disable-restore-session-state \
+    --no-first-run \
+    --start-fullscreen \
+    --check-for-update-interval=31536000 \
+    --disable-translate \
+    --disable-features=TranslateUI \
+    --overscroll-history-navigation=0 \
+    "http://localhost:8000/?kiosk=1"
+KIOSKEOF
+
+    chmod +x /home/$KIOSK_USER/start-kiosk.sh
+    chown $KIOSK_USER:$KIOSK_USER /home/$KIOSK_USER/start-kiosk.sh
+
+    # Create LXDE autostart directory
+    mkdir -p /home/$KIOSK_USER/.config/lxsession/LXDE-pi
+    chown -R $KIOSK_USER:$KIOSK_USER /home/$KIOSK_USER/.config
+
+    # Create autostart file - NO panel or desktop, just the kiosk
+    cat > /home/$KIOSK_USER/.config/lxsession/LXDE-pi/autostart << EOF
+@xset s off
+@xset -dpms
+@xset s noblank
+@unclutter -idle 0.5 -root
+@/home/$KIOSK_USER/start-kiosk.sh
+EOF
+    chown $KIOSK_USER:$KIOSK_USER /home/$KIOSK_USER/.config/lxsession/LXDE-pi/autostart
+
+    # Configure auto-login for desktop
+    echo ">>> Configuring desktop auto-login..."
+    mkdir -p /etc/lightdm/lightdm.conf.d
+    cat > /etc/lightdm/lightdm.conf.d/autologin.conf << EOF
+[Seat:*]
+autologin-user=$KIOSK_USER
+autologin-session=LXDE-pi
+EOF
+
+else
+    # ============================================
+    # LITE VERSION - Use console + openbox
+    # ============================================
+    echo ">>> Configuring Lite kiosk mode..."
+
+    # Configure auto-login to console
+    mkdir -p /etc/systemd/system/getty@tty1.service.d
+    cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
 [Service]
 ExecStart=
 ExecStart=-/sbin/agetty --autologin $KIOSK_USER --noclear %I \$TERM
 EOF
 
-# Create kiosk startup script
-echo ">>> Creating kiosk startup script..."
-cat > /home/$KIOSK_USER/start-kiosk.sh << 'KIOSKEOF'
+    # Create kiosk startup script
+    cat > /home/$KIOSK_USER/start-kiosk.sh << 'KIOSKEOF'
 #!/bin/bash
 # Centerville Kiosk Startup Script
 
@@ -129,39 +224,41 @@ exec chromium-browser \
     "http://localhost:8000/?kiosk=1"
 KIOSKEOF
 
-chmod +x /home/$KIOSK_USER/start-kiosk.sh
-chown $KIOSK_USER:$KIOSK_USER /home/$KIOSK_USER/start-kiosk.sh
+    chmod +x /home/$KIOSK_USER/start-kiosk.sh
+    chown $KIOSK_USER:$KIOSK_USER /home/$KIOSK_USER/start-kiosk.sh
 
-# Create openbox autostart
-mkdir -p /home/$KIOSK_USER/.config/openbox
-cat > /home/$KIOSK_USER/.config/openbox/autostart << EOF
+    # Create openbox autostart
+    mkdir -p /home/$KIOSK_USER/.config/openbox
+    cat > /home/$KIOSK_USER/.config/openbox/autostart << EOF
 /home/$KIOSK_USER/start-kiosk.sh &
 EOF
-chown -R $KIOSK_USER:$KIOSK_USER /home/$KIOSK_USER/.config
+    chown -R $KIOSK_USER:$KIOSK_USER /home/$KIOSK_USER/.config
 
-# Create .bash_profile to auto-start X on login
-cat > /home/$KIOSK_USER/.bash_profile << 'EOF'
+    # Create .bash_profile to auto-start X on login
+    cat > /home/$KIOSK_USER/.bash_profile << 'EOF'
 # Auto-start X server on tty1
 if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
     exec startx -- -nocursor
 fi
 EOF
-chown $KIOSK_USER:$KIOSK_USER /home/$KIOSK_USER/.bash_profile
+    chown $KIOSK_USER:$KIOSK_USER /home/$KIOSK_USER/.bash_profile
 
-# Create .xinitrc
-cat > /home/$KIOSK_USER/.xinitrc << EOF
+    # Create .xinitrc
+    cat > /home/$KIOSK_USER/.xinitrc << EOF
 exec openbox-session
 EOF
-chown $KIOSK_USER:$KIOSK_USER /home/$KIOSK_USER/.xinitrc
+    chown $KIOSK_USER:$KIOSK_USER /home/$KIOSK_USER/.xinitrc
+fi
 
 # Configure for 3.5" display (if using common SPI displays)
 echo ">>> Configuring display settings..."
-# Add display rotation if needed (uncomment and modify as needed)
-# echo "display_rotate=0" >> /boot/config.txt
 
 # Disable overscan for cleaner display
-if ! grep -q "disable_overscan=1" /boot/config.txt; then
-    echo "disable_overscan=1" >> /boot/config.txt
+BOOT_CONFIG="/boot/config.txt"
+[ -f "/boot/firmware/config.txt" ] && BOOT_CONFIG="/boot/firmware/config.txt"
+
+if ! grep -q "disable_overscan=1" "$BOOT_CONFIG"; then
+    echo "disable_overscan=1" >> "$BOOT_CONFIG"
 fi
 
 # Enable Bluetooth
@@ -173,6 +270,12 @@ echo ""
 echo "=== Setup Complete ==="
 echo ""
 echo "The Raspberry Pi is now configured as a kiosk."
+echo ""
+if [ "$IS_DESKTOP" = true ]; then
+    echo "Mode: Desktop (LXDE)"
+else
+    echo "Mode: Lite (Openbox)"
+fi
 echo ""
 echo "Services installed:"
 echo "  - centerville-coordinator (FastAPI server on port 8000)"
