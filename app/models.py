@@ -6,7 +6,7 @@ from datetime import datetime
 class SensorReading(BaseModel):
     device: str
     version: str = "unknown"
-    ts: int
+    ts: Optional[int] = 0
     # PM sensor fields (optional - only present if sensor detected)
     pm2_5: Optional[int] = None
     pm2_5_norm: Optional[float] = None
