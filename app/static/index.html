@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centerville Air Quality</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        h1 { margin-bottom: 0.5rem; color: #fff; }
+        h2 { margin-bottom: 1rem; color: #fff; font-size: 1.25rem; }
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.875rem;
+        }
+        .status.connected { background: #10b981; }
+        .status.disconnected { background: #ef4444; }
+
+        .sensors-section {
+            margin-bottom: 2rem;
+        }
+        .no-sensors {
+            color: #666;
+            font-style: italic;
+            padding: 2rem;
+            text-align: center;
+            background: #16213e;
+            border-radius: 1rem;
+        }
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+        .sensor-panel {
+            background: #16213e;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            position: relative;
+        }
+        .sensor-panel.disconnected {
+            opacity: 0.5;
+        }
+        .sensor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid #333;
+        }
+        .sensor-name-row {
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+        }
+        .sensor-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        .sensor-version {
+            font-size: 0.75rem;
+            color: #666;
+        }
+        .sensor-status {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.5rem;
+        }
+        .sensor-status.online { background: #10b981; }
+        .sensor-status.offline { background: #ef4444; }
+        .sensor-header-right {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .settings-btn {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            padding: 0.25rem;
+            font-size: 1.1rem;
+            transition: color 0.2s;
+        }
+        .settings-btn:hover {
+            color: #eee;
+        }
+        .wifi-indicator {
+            font-size: 0.7rem;
+            color: #10b981;
+        }
+        .sensor-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        .card {
+            background: #0f0f23;
+            border-radius: 0.75rem;
+            padding: 1rem;
+        }
+        .card-label {
+            font-size: 0.75rem;
+            color: #888;
+            margin-bottom: 0.25rem;
+        }
+        .card-value {
+            font-size: 1.75rem;
+            font-weight: 600;
+        }
+        .card-unit {
+            font-size: 0.875rem;
+            color: #888;
+            margin-left: 0.25rem;
+        }
+        .bar-container {
+            margin-top: 0.5rem;
+            height: 6px;
+            background: #1a1a2e;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .bar {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+        .bar.good { background: linear-gradient(90deg, #10b981, #34d399); }
+        .bar.moderate { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .bar.poor { background: linear-gradient(90deg, #ef4444, #f87171); }
+        .sensor-timestamp {
+            margin-top: 1rem;
+            font-size: 0.75rem;
+            color: #666;
+        }
+        .no-data {
+            color: #666;
+            font-style: italic;
+            font-size: 1rem;
+        }
+
+        .charts-section {
+            margin-top: 2rem;
+        }
+        .chart-container {
+            background: #16213e;
+            border-radius: 1rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .chart-container canvas {
+            max-height: 300px;
+        }
+
+        /* Modal styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal {
+            background: #16213e;
+            border-radius: 1rem;
+            padding: 2rem;
+            width: 90%;
+            max-width: 400px;
+        }
+        .modal h3 {
+            margin-bottom: 1.5rem;
+            color: #fff;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            font-size: 0.875rem;
+            color: #888;
+            margin-bottom: 0.25rem;
+        }
+        .form-group input[type="text"],
+        .form-group input[type="password"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #333;
+            border-radius: 0.5rem;
+            background: #0f0f23;
+            color: #eee;
+            font-size: 1rem;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #10b981;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: 1.25rem;
+            height: 1.25rem;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        .modal-buttons button {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: #10b981;
+            color: #fff;
+        }
+        .btn-primary:hover {
+            background: #0d9668;
+        }
+        .btn-secondary {
+            background: #333;
+            color: #eee;
+        }
+        .btn-secondary:hover {
+            background: #444;
+        }
+        .config-status {
+            font-size: 0.875rem;
+            margin-top: 1rem;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+        .config-status.success {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        .config-status.error {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        /* Kiosk mode styles for 480x320 display */
+        body.kiosk {
+            padding: 0.5rem;
+            overflow: hidden;
+        }
+        body.kiosk .header {
+            margin-bottom: 0.5rem;
+        }
+        body.kiosk h1 {
+            font-size: 1rem;
+        }
+        body.kiosk h2 {
+            display: none;
+        }
+        body.kiosk .status {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.5rem;
+        }
+        body.kiosk .charts-section {
+            display: none;
+        }
+        body.kiosk .sensor-grid {
+            grid-template-columns: 1fr;
+            gap: 0.5rem;
+        }
+        body.kiosk .sensor-panel {
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+        }
+        body.kiosk .sensor-header {
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.25rem;
+        }
+        body.kiosk .sensor-name {
+            font-size: 0.9rem;
+        }
+        body.kiosk .sensor-version,
+        body.kiosk .wifi-indicator {
+            font-size: 0.6rem;
+        }
+        body.kiosk .sensor-status {
+            font-size: 0.6rem;
+            padding: 0.1rem 0.4rem;
+        }
+        body.kiosk .settings-btn {
+            display: none;
+        }
+        body.kiosk .sensor-cards {
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.35rem;
+        }
+        body.kiosk .card {
+            padding: 0.4rem;
+            border-radius: 0.4rem;
+        }
+        body.kiosk .card-label {
+            font-size: 0.55rem;
+            margin-bottom: 0.1rem;
+        }
+        body.kiosk .card-value {
+            font-size: 1.1rem;
+            line-height: 1.1;
+        }
+        body.kiosk .card-unit {
+            font-size: 0.55rem;
+        }
+        body.kiosk .bar-container {
+            margin-top: 0.25rem;
+            height: 4px;
+        }
+        body.kiosk .sensor-timestamp {
+            margin-top: 0.35rem;
+            font-size: 0.55rem;
+        }
+        body.kiosk .no-sensors {
+            padding: 1rem;
+            font-size: 0.9rem;
+        }
+        body.kiosk .no-data {
+            font-size: 0.8rem;
+        }
+
+        /* Ultra-compact for very small screens */
+        @media (max-height: 320px) {
+            body.kiosk .sensor-cards {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            body.kiosk .card-value {
+                font-size: 1rem;
+            }
+        }
+
+        /* Multi-sensor kiosk layout */
+        body.kiosk.multi-sensor .sensor-grid {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 2rem);
+        }
+        body.kiosk.multi-sensor .sensor-panel {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        body.kiosk.multi-sensor .sensor-cards {
+            flex: 1;
+            align-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Centerville Air Quality</h1>
+        <div class="status disconnected" id="status">Disconnected</div>
+    </div>
+
+    <div class="sensors-section">
+        <h2>Sensors</h2>
+        <div id="sensors-container">
+            <div class="no-sensors">No sensors connected</div>
+        </div>
+    </div>
+
+    <div class="charts-section">
+        <h2>Historical Data (Last Hour)</h2>
+        <div class="chart-container">
+            <canvas id="airQualityChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Config Modal -->
+    <div class="modal-overlay" id="configModal">
+        <div class="modal">
+            <h3>Configure Sensor: <span id="configDeviceId"></span></h3>
+            <form id="configForm">
+                <div class="form-group">
+                    <label for="configHostname">Hostname (mDNS)</label>
+                    <input type="text" id="configHostname" placeholder="e.g., bedroom-sensor">
+                    <small style="color: #666; font-size: 0.75rem;">.local will be added automatically</small>
+                </div>
+                <div class="form-group">
+                    <label for="configSsid">WiFi Network (SSID)</label>
+                    <input type="text" id="configSsid" placeholder="Your WiFi network name">
+                </div>
+                <div class="form-group">
+                    <label for="configPassword">WiFi Password</label>
+                    <input type="password" id="configPassword" placeholder="Leave blank to keep existing">
+                </div>
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="configEnabled">
+                    <label for="configEnabled" style="margin: 0;">Enable WiFi</label>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn-secondary" onclick="closeConfigModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Save & Push</button>
+                </div>
+                <div class="config-status" id="configStatus" style="display: none;"></div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const wsUrl = `ws://${window.location.host}/ws`;
+        let ws;
+        let airQualityChart;
+        const maxDataPoints = 100;
+
+        // Track sensors and their data
+        const sensors = new Map(); // device -> { name, connected, lastReading, lastUpdate }
+        const sensorColors = [
+            { pm: '#10b981', gas: '#34d399' },
+            { pm: '#3b82f6', gas: '#60a5fa' },
+            { pm: '#8b5cf6', gas: '#a78bfa' },
+            { pm: '#ec4899', gas: '#f472b6' },
+            { pm: '#f59e0b', gas: '#fbbf24' },
+        ];
+
+        // Chart configuration
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 0 },
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: { unit: 'minute' },
+                    ticks: { color: '#888' },
+                    grid: { color: '#333' }
+                },
+                y: {
+                    ticks: { color: '#888' },
+                    grid: { color: '#333' },
+                    min: 0,
+                    max: 1,
+                    title: {
+                        display: true,
+                        text: 'Normalized (0-1)',
+                        color: '#888'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    labels: { color: '#eee' }
+                }
+            }
+        };
+
+        function initChart() {
+            const ctx = document.getElementById('airQualityChart').getContext('2d');
+            airQualityChart = new Chart(ctx, {
+                type: 'line',
+                data: { datasets: [] },
+                options: chartOptions
+            });
+        }
+
+        function getSensorColor(device) {
+            const index = Array.from(sensors.keys()).indexOf(device);
+            return sensorColors[index % sensorColors.length];
+        }
+
+        function ensureChartDatasets(device) {
+            const colors = getSensorColor(device);
+            const pmLabel = `${device} PM2.5`;
+            const gasLabel = `${device} Gas`;
+
+            // Check if datasets exist
+            const pmExists = airQualityChart.data.datasets.some(d => d.label === pmLabel);
+            const gasExists = airQualityChart.data.datasets.some(d => d.label === gasLabel);
+
+            if (!pmExists) {
+                airQualityChart.data.datasets.push({
+                    label: pmLabel,
+                    borderColor: colors.pm,
+                    backgroundColor: colors.pm + '20',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    data: []
+                });
+            }
+
+            if (!gasExists) {
+                airQualityChart.data.datasets.push({
+                    label: gasLabel,
+                    borderColor: colors.gas,
+                    backgroundColor: colors.gas + '20',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    borderDash: [5, 5],
+                    data: []
+                });
+            }
+        }
+
+        function addChartData(device, time, data, update = true) {
+            // Only add data for sensors that are present
+            if (data.pm2_5_norm === undefined && data.gas_norm === undefined) {
+                return; // No chart data available
+            }
+
+            ensureChartDatasets(device);
+
+            const pmLabel = `${device} PM2.5`;
+            const gasLabel = `${device} Gas`;
+
+            const pmDataset = airQualityChart.data.datasets.find(d => d.label === pmLabel);
+            const gasDataset = airQualityChart.data.datasets.find(d => d.label === gasLabel);
+
+            // Only add PM data if sensor is present
+            if (pmDataset && data.pm2_5_norm !== undefined) {
+                pmDataset.data.push({ x: time, y: data.pm2_5_norm });
+                if (pmDataset.data.length > maxDataPoints) pmDataset.data.shift();
+            }
+
+            // Only add gas data if sensor is present
+            if (gasDataset && data.gas_norm !== undefined) {
+                gasDataset.data.push({ x: time, y: data.gas_norm });
+                if (gasDataset.data.length > maxDataPoints) gasDataset.data.shift();
+            }
+
+            if (update) {
+                airQualityChart.update();
+            }
+        }
+
+        async function loadSensors() {
+            try {
+                const response = await fetch('/api/sensors');
+                const data = await response.json();
+
+                data.sensors.forEach(sensor => {
+                    sensors.set(sensor.device, {
+                        name: sensor.name,
+                        address: sensor.address,
+                        connected: sensor.connected,
+                        lastReading: sensor.last_reading,
+                        lastUpdate: sensor.last_reading?.received_at ? new Date(sensor.last_reading.received_at) : null
+                    });
+                });
+
+                renderSensors();
+            } catch (e) {
+                console.error('Failed to load sensors:', e);
+            }
+        }
+
+        async function loadHistoricalData() {
+            try {
+                const response = await fetch('/api/readings?hours=1&limit=500');
+                const data = await response.json();
+
+                // Group by device and add to chart
+                const readings = data.readings.reverse();
+                readings.forEach(r => {
+                    const time = new Date(r.received_at);
+                    // Ensure sensor exists in our map
+                    if (!sensors.has(r.device)) {
+                        sensors.set(r.device, {
+                            name: r.device,
+                            connected: false,
+                            lastReading: null,
+                            lastUpdate: null
+                        });
+                    }
+                    addChartData(r.device, time, r, false);
+                });
+
+                airQualityChart.update();
+            } catch (e) {
+                console.error('Failed to load historical data:', e);
+            }
+        }
+
+        function renderSensors() {
+            const container = document.getElementById('sensors-container');
+
+            if (sensors.size === 0) {
+                container.innerHTML = '<div class="no-sensors">No sensors connected</div>';
+                return;
+            }
+
+            let html = '<div class="sensor-grid">';
+
+            sensors.forEach((sensor, device) => {
+                const reading = sensor.lastReading;
+                const colors = getSensorColor(device);
+                const statusClass = sensor.connected ? 'online' : 'offline';
+                const panelClass = sensor.connected ? '' : 'disconnected';
+
+                const wifiConnected = reading?.wifi_connected;
+                const hostname = reading?.hostname;
+
+                html += `
+                    <div class="sensor-panel ${panelClass}" id="sensor-${device}">
+                        <div class="sensor-header">
+                            <div class="sensor-name-row">
+                                <span class="sensor-name">${device}</span>
+                                <span class="sensor-version" id="version-${device}">${reading?.version ? `v${reading.version}` : ''}</span>
+                                ${wifiConnected ? `<span class="wifi-indicator" id="wifi-${device}" title="${hostname}.local">WiFi</span>` : ''}
+                            </div>
+                            <div class="sensor-header-right">
+                                <button class="settings-btn" onclick="openConfigModal('${device}')" title="Configure">&#9881;</button>
+                                <span class="sensor-status ${statusClass}">${sensor.connected ? 'Online' : 'Offline'}</span>
+                            </div>
+                        </div>
+                        <div class="sensor-cards">
+                            ${reading?.pm2_5 !== undefined ? `
+                            <div class="card">
+                                <div class="card-label">PM2.5</div>
+                                <div class="card-value" id="pm25-${device}">
+                                    ${reading.pm2_5}<span class="card-unit">µg/m³</span>
+                                </div>
+                                <div class="bar-container">
+                                    <div class="bar ${getQualityClass(reading?.pm2_5_norm || 0)}" id="pm25-bar-${device}"
+                                         style="width: ${Math.min((reading.pm2_5_norm || 0) * 100, 100)}%"></div>
+                                </div>
+                            </div>` : ''}
+                            ${reading?.gas_raw !== undefined ? `
+                            <div class="card">
+                                <div class="card-label">Gas (Raw)</div>
+                                <div class="card-value" id="gas-${device}">
+                                    ${reading.gas_raw}
+                                </div>
+                                <div class="bar-container">
+                                    <div class="bar ${getQualityClass(reading?.gas_norm || 0)}" id="gas-bar-${device}"
+                                         style="width: ${Math.round((reading.gas_norm || 0) * 100)}%"></div>
+                                </div>
+                            </div>` : ''}
+                            ${reading?.temp !== undefined ? `
+                            <div class="card">
+                                <div class="card-label">Temperature</div>
+                                <div class="card-value" id="temp-${device}">
+                                    ${(reading.temp * 9/5 + 32).toFixed(1)}<span class="card-unit">°F</span>
+                                </div>
+                            </div>
+                            <div class="card">
+                                <div class="card-label">Humidity</div>
+                                <div class="card-value" id="humidity-${device}">
+                                    ${(reading.humidity || 0).toFixed(0)}<span class="card-unit">%</span>
+                                </div>
+                            </div>` : ''}
+                            ${!reading ? '<div class="no-data" style="grid-column: span 2; text-align: center; padding: 1rem;">Waiting for sensor data...</div>' : ''}
+                        </div>
+                        <div class="sensor-timestamp" id="timestamp-${device}">
+                            ${sensor.lastUpdate ? `Last update: ${sensor.lastUpdate.toLocaleTimeString()}` : 'Waiting for data...'}
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function updateSensorDisplay(device, data) {
+            const pm25El = document.getElementById(`pm25-${device}`);
+            const pm25Bar = document.getElementById(`pm25-bar-${device}`);
+            const gasEl = document.getElementById(`gas-${device}`);
+            const gasBar = document.getElementById(`gas-bar-${device}`);
+            const tempEl = document.getElementById(`temp-${device}`);
+            const humidityEl = document.getElementById(`humidity-${device}`);
+            const timestampEl = document.getElementById(`timestamp-${device}`);
+            const versionEl = document.getElementById(`version-${device}`);
+
+            // Version
+            if (versionEl && data.version) {
+                versionEl.textContent = `v${data.version}`;
+            }
+
+            // PM2.5 (only update if element exists - sensor detected)
+            if (pm25El && pm25Bar && data.pm2_5 !== undefined) {
+                pm25El.innerHTML = `${data.pm2_5}<span class="card-unit">µg/m³</span>`;
+                const pm25Pct = Math.min((data.pm2_5_norm || 0) * 100, 100);
+                pm25Bar.style.width = `${pm25Pct}%`;
+                pm25Bar.className = `bar ${getQualityClass(data.pm2_5_norm || 0)}`;
+            }
+
+            // Gas (only update if element exists - sensor detected)
+            if (gasEl && gasBar && data.gas_raw !== undefined) {
+                gasEl.textContent = data.gas_raw;
+                const gasPct = Math.round((data.gas_norm || 0) * 100);
+                gasBar.style.width = `${gasPct}%`;
+                gasBar.className = `bar ${getQualityClass(data.gas_norm || 0)}`;
+            }
+
+            // Temperature (only update if element exists - sensor detected)
+            if (tempEl && data.temp !== undefined) {
+                const tempF = data.temp * 9/5 + 32;
+                tempEl.innerHTML = `${tempF.toFixed(1)}<span class="card-unit">°F</span>`;
+            }
+
+            // Humidity (only update if element exists - sensor detected)
+            if (humidityEl && data.humidity !== undefined) {
+                humidityEl.innerHTML = `${data.humidity.toFixed(0)}<span class="card-unit">%</span>`;
+            }
+
+            // Timestamp
+            if (timestampEl) {
+                const receivedAt = data.received_at ? new Date(data.received_at) : new Date();
+                timestampEl.textContent = `Last update: ${receivedAt.toLocaleTimeString()}`;
+            }
+        }
+
+        function handleSensorStatus(data) {
+            const { device, address, name, connected } = data;
+
+            if (connected) {
+                // Sensor connected
+                if (!sensors.has(device)) {
+                    sensors.set(device, {
+                        name: name,
+                        address: address,
+                        connected: true,
+                        lastReading: null,
+                        lastUpdate: null
+                    });
+                } else {
+                    const sensor = sensors.get(device);
+                    sensor.connected = true;
+                    sensor.name = name;
+                    sensor.address = address;
+                }
+            } else {
+                // Sensor disconnected
+                if (sensors.has(device)) {
+                    sensors.get(device).connected = false;
+                }
+            }
+
+            renderSensors();
+        }
+
+        function handleReading(data) {
+            const device = data.device;
+
+            // Update or create sensor entry
+            if (!sensors.has(device)) {
+                sensors.set(device, {
+                    name: device,
+                    connected: true,
+                    lastReading: data,
+                    lastUpdate: new Date()
+                });
+                renderSensors();
+            } else {
+                const sensor = sensors.get(device);
+                const hadNoReading = !sensor.lastReading;
+                sensor.lastReading = data;
+                sensor.lastUpdate = new Date();
+                sensor.connected = true;
+
+                // Re-render if this is the first reading (to create the cards)
+                if (hadNoReading) {
+                    renderSensors();
+                } else {
+                    updateSensorDisplay(device, data);
+                }
+            }
+
+            // Add to chart
+            const time = data.received_at ? new Date(data.received_at) : new Date();
+            addChartData(device, time, data);
+        }
+
+        function connect() {
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                document.getElementById('status').textContent = 'Connected';
+                document.getElementById('status').className = 'status connected';
+            };
+
+            ws.onclose = () => {
+                document.getElementById('status').textContent = 'Disconnected';
+                document.getElementById('status').className = 'status disconnected';
+                setTimeout(connect, 2000);
+            };
+
+            ws.onerror = () => ws.close();
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+
+                if (message.type === 'reading') {
+                    handleReading(message.data);
+                } else if (message.type === 'sensor_status') {
+                    handleSensorStatus(message.data);
+                }
+            };
+        }
+
+        function getQualityClass(norm) {
+            if (norm < 0.25) return 'good';
+            if (norm < 0.5) return 'moderate';
+            return 'poor';
+        }
+
+        // Configuration modal functions
+        let currentConfigDevice = null;
+
+        async function openConfigModal(device) {
+            currentConfigDevice = device;
+            document.getElementById('configDeviceId').textContent = device;
+            document.getElementById('configStatus').style.display = 'none';
+
+            // Clear form
+            document.getElementById('configHostname').value = '';
+            document.getElementById('configSsid').value = '';
+            document.getElementById('configPassword').value = '';
+            document.getElementById('configEnabled').checked = false;
+
+            // Fetch current config
+            try {
+                const response = await fetch(`/api/config/${device}`);
+                if (response.ok) {
+                    const config = await response.json();
+                    document.getElementById('configHostname').value = config.hostname || '';
+                    document.getElementById('configSsid').value = config.wifi_ssid || '';
+                    document.getElementById('configEnabled').checked = config.wifi_enabled || false;
+                    // Password field left blank - placeholder indicates existing password
+                    if (config.wifi_configured) {
+                        document.getElementById('configPassword').placeholder = '••••••• (leave blank to keep)';
+                    } else {
+                        document.getElementById('configPassword').placeholder = 'Enter WiFi password';
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load config:', e);
+            }
+
+            document.getElementById('configModal').classList.add('active');
+        }
+
+        function closeConfigModal() {
+            document.getElementById('configModal').classList.remove('active');
+            currentConfigDevice = null;
+        }
+
+        // Handle form submission
+        document.getElementById('configForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!currentConfigDevice) return;
+
+            const statusEl = document.getElementById('configStatus');
+            statusEl.style.display = 'block';
+            statusEl.className = 'config-status';
+            statusEl.textContent = 'Saving...';
+
+            const config = {
+                hostname: document.getElementById('configHostname').value,
+                wifi_ssid: document.getElementById('configSsid').value,
+                wifi_password: document.getElementById('configPassword').value,
+                wifi_enabled: document.getElementById('configEnabled').checked
+            };
+
+            try {
+                const response = await fetch(`/api/config/${currentConfigDevice}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    statusEl.className = 'config-status success';
+                    statusEl.textContent = result.message;
+                    // Close modal after short delay
+                    setTimeout(() => {
+                        closeConfigModal();
+                    }, 1500);
+                } else {
+                    statusEl.className = 'config-status error';
+                    statusEl.textContent = result.error || 'Failed to save configuration';
+                }
+            } catch (e) {
+                statusEl.className = 'config-status error';
+                statusEl.textContent = 'Network error - please try again';
+                console.error('Failed to save config:', e);
+            }
+        });
+
+        // Close modal when clicking outside
+        document.getElementById('configModal').addEventListener('click', (e) => {
+            if (e.target.id === 'configModal') {
+                closeConfigModal();
+            }
+        });
+
+        // Kiosk mode detection
+        function isKioskMode() {
+            const params = new URLSearchParams(window.location.search);
+            return params.has('kiosk') || (window.innerWidth <= 480 && window.innerHeight <= 320);
+        }
+
+        function updateKioskMode() {
+            if (isKioskMode()) {
+                document.body.classList.add('kiosk');
+                // Add multi-sensor class if more than one sensor
+                if (sensors.size > 1) {
+                    document.body.classList.add('multi-sensor');
+                } else {
+                    document.body.classList.remove('multi-sensor');
+                }
+            }
+        }
+
+        // Initialize
+        if (isKioskMode()) {
+            document.body.classList.add('kiosk');
+        } else {
+            initChart();
+            loadHistoricalData();
+        }
+        loadSensors();
+        connect();
+
+        // Update kiosk mode when sensors change
+        const originalRenderSensors = renderSensors;
+        renderSensors = function() {
+            originalRenderSensors();
+            updateKioskMode();
+        };
+    </script>
+</body>
+</html>
