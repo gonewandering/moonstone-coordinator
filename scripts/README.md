@@ -5,28 +5,35 @@ Scripts to configure a Raspberry Pi as a dedicated kiosk displaying the Centervi
 ## Prerequisites
 
 - Raspberry Pi (tested on Pi 3/4/Zero 2W)
-- Raspberry Pi OS Lite or Desktop (Bookworm or newer)
-- 3.5" SPI/HDMI display (480x320)
+- Raspberry Pi OS Lite (Bookworm) - **recommended**
+- 3.5" SPI display (480x320)
 - Network connection (Ethernet or WiFi)
 
 ## Quick Setup
 
-1. Flash Raspberry Pi OS to your SD card
-2. Enable SSH and configure WiFi (if needed) using Raspberry Pi Imager
+1. Flash **Raspberry Pi OS Lite** to your SD card using Raspberry Pi Imager
+2. Enable SSH and configure WiFi in the imager settings
 3. Boot the Pi and SSH into it
 4. Clone the repository:
    ```bash
    git clone <your-repo-url> ~/centerville-coordinator
    cd ~/centerville-coordinator
    ```
-5. Run the setup script:
+5. Set up the LCD display first:
    ```bash
-   sudo ./scripts/setup-kiosk.sh
-   ```
-6. Reboot:
-   ```bash
+   sudo ./scripts/setup-lcd.sh
    sudo reboot
    ```
+6. After confirming the display works, run the kiosk setup:
+   ```bash
+   cd ~/centerville-coordinator
+   sudo ./scripts/setup-kiosk.sh
+   sudo reboot
+   ```
+
+## Important: Avoid Third-Party LCD Scripts
+
+**Do NOT use driver scripts from lcdwiki.com or similar sites** - they often replace your entire OS with a custom image. Instead, use the `setup-lcd.sh` script which uses built-in kernel overlays.
 
 ## What the Setup Script Does
 
