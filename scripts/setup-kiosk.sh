@@ -137,7 +137,7 @@ chromium \
     --disable-translate \
     --disable-features=TranslateUI \
     --overscroll-history-navigation=0 \
-    "http://localhost:8000/?kiosk=1"
+    "http://localhost:8000/kiosk"
 KIOSKEOF
 
     chmod +x /home/$KIOSK_USER/start-kiosk.sh
@@ -218,7 +218,7 @@ exec chromium \
     --disable-translate \
     --disable-features=TranslateUI \
     --overscroll-history-navigation=0 \
-    "http://localhost:8000/?kiosk=1"
+    "http://localhost:8000/kiosk"
 KIOSKEOF
 
     chmod +x /home/$KIOSK_USER/start-kiosk.sh

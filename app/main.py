@@ -100,6 +100,11 @@ async def root():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/kiosk")
+async def kiosk():
+    return FileResponse(STATIC_DIR / "kiosk.html")
+
+
 @app.get("/api/status")
 async def status():
     wifi_active_sensors = list(wifi_manager.get_wifi_active_sensors()) if wifi_manager else []
