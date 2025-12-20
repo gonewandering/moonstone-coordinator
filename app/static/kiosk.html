@@ -38,13 +38,13 @@
             opacity: 0.9;
         }
         .bar.good {
-            background: linear-gradient(90deg, #059669, #10b981);
+            background: #10b981;
         }
         .bar.moderate {
-            background: linear-gradient(90deg, #d97706, #f59e0b);
+            background: #f59e0b;
         }
         .bar.poor {
-            background: linear-gradient(90deg, #dc2626, #ef4444);
+            background: #ef4444;
         }
         .content {
             position: relative;
@@ -104,8 +104,8 @@
         const metrics = [
             { key: 'pm2_5', label: 'PM2.5', unit: 'µg/m³', norm: 'pm2_5_norm', max: 500 },
             { key: 'gas_raw', label: 'Gas', unit: '', norm: 'gas_norm', max: 4095 },
-            { key: 'temp', label: 'Temp', unit: '°F', isTemp: true },
-            { key: 'humidity', label: 'Humidity', unit: '%', max: 100 }
+            { key: 'temp', label: 'Temp', unit: '°F', isTemp: true, warnThreshold: 90 },
+            { key: 'humidity', label: 'Humidity', unit: '%', max: 100, isHumidity: true, warnThreshold: 75 }
         ];
 
         function getQualityClass(norm) {
@@ -171,25 +171,48 @@
                 let norm;
                 let displayValue;
 
+                let qualityClass;
+
                 if (m.isTemp) {
                     // Convert C to F
-                    displayValue = (value * 9/5 + 32).toFixed(0);
-                    // Normalize temp: 60°F = good, 80°F = moderate, 90°F+ = poor
                     const tempF = value * 9/5 + 32;
-                    norm = Math.max(0, Math.min(1, (tempF - 60) / 40));
+                    displayValue = tempF.toFixed(0);
+                    // Bar width based on 50-110°F range
+                    norm = Math.max(0, Math.min(1, (tempF - 50) / 60));
+                    // Color: green until 90°F, then yellow until 100°F, then red
+                    if (tempF < m.warnThreshold) {
+                        qualityClass = 'good';
+                    } else if (tempF < 100) {
+                        qualityClass = 'moderate';
+                    } else {
+                        qualityClass = 'poor';
+                    }
+                } else if (m.isHumidity) {
+                    displayValue = Math.round(value);
+                    norm = value / m.max;
+                    // Color: green until 75%, then yellow until 85%, then red
+                    if (value < m.warnThreshold) {
+                        qualityClass = 'good';
+                    } else if (value < 85) {
+                        qualityClass = 'moderate';
+                    } else {
+                        qualityClass = 'poor';
+                    }
                 } else if (m.norm && averages[m.norm] !== undefined) {
                     norm = averages[m.norm];
                     displayValue = Math.round(value);
+                    qualityClass = getQualityClass(norm);
                 } else if (m.max) {
                     norm = value / m.max;
                     displayValue = Math.round(value);
+                    qualityClass = getQualityClass(norm);
                 } else {
                     norm = 0;
                     displayValue = Math.round(value);
+                    qualityClass = 'good';
                 }
 
                 const barWidth = Math.min(Math.max(norm * 100, 2), 100);
-                const qualityClass = getQualityClass(norm);
 
                 html += `
                     <div class="metric">
