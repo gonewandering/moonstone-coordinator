@@ -42,10 +42,8 @@ if [ "$IS_DESKTOP" = true ]; then
         python3-pip \
         python3-venv \
         unclutter \
-        libatlas-base-dev \
         bluez \
-        bluetooth \
-        xdotool
+        bluetooth
 else
     apt-get install -y \
         python3-pip \
@@ -56,7 +54,6 @@ else
         xinit \
         openbox \
         unclutter \
-        libatlas-base-dev \
         bluez \
         bluetooth
 fi
