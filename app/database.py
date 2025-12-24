@@ -60,9 +60,15 @@ class Database:
                 wifi_password TEXT,
                 hostname TEXT,
                 wifi_enabled INTEGER DEFAULT 0,
+                background_color TEXT DEFAULT '',
                 updated_at TEXT
             )
         """)
+        # Add background_color column if it doesn't exist (migration)
+        try:
+            await self._connection.execute("ALTER TABLE sensor_configs ADD COLUMN background_color TEXT DEFAULT ''")
+        except Exception:
+            pass  # Column already exists
         await self._connection.commit()
 
     async def store_reading(self, reading: SensorReading):
@@ -145,6 +151,7 @@ class Database:
                 wifi_password=row["wifi_password"] or "",
                 hostname=row["hostname"] or "",
                 wifi_enabled=bool(row["wifi_enabled"]),
+                background_color=row["background_color"] or "" if "background_color" in row.keys() else "",
                 updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None
             )
         return None
@@ -152,14 +159,15 @@ class Database:
     async def save_sensor_config(self, config: SensorConfig):
         await self._connection.execute("""
             INSERT OR REPLACE INTO sensor_configs (
-                device, wifi_ssid, wifi_password, hostname, wifi_enabled, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?)
+                device, wifi_ssid, wifi_password, hostname, wifi_enabled, background_color, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
             config.device,
             config.wifi_ssid,
             config.wifi_password,
             config.hostname,
             1 if config.wifi_enabled else 0,
+            config.background_color,
             datetime.utcnow().isoformat()
         ))
         await self._connection.commit()
@@ -174,6 +182,7 @@ class Database:
                 wifi_password=row["wifi_password"] or "",
                 hostname=row["hostname"] or "",
                 wifi_enabled=bool(row["wifi_enabled"]),
+                background_color=row["background_color"] or "" if "background_color" in row.keys() else "",
                 updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None
             )
             for row in rows

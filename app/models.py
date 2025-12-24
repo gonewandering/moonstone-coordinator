@@ -31,6 +31,7 @@ class SensorConfig(BaseModel):
     wifi_password: str = ""
     hostname: str = ""
     wifi_enabled: bool = False
+    background_color: str = ""
     updated_at: Optional[datetime] = None
 
 

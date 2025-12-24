@@ -22,6 +22,7 @@ class ConfigUpdateRequest(BaseModel):
     wifi_password: str = ""
     hostname: str = ""
     wifi_enabled: bool = False
+    background_color: str = ""
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -185,9 +186,10 @@ async def get_sensor_config(device: str):
             "wifi_configured": len(config.wifi_password) > 0,
             "hostname": config.hostname,
             "wifi_enabled": config.wifi_enabled,
+            "background_color": config.background_color,
             "updated_at": config.updated_at.isoformat() if config.updated_at else None
         }
-    return {"device": device, "wifi_ssid": "", "wifi_configured": False, "hostname": "", "wifi_enabled": False}
+    return {"device": device, "wifi_ssid": "", "wifi_configured": False, "hostname": "", "wifi_enabled": False, "background_color": ""}
 
 
 @app.put("/api/config/{device}")
@@ -199,7 +201,8 @@ async def update_sensor_config(device: str, request: ConfigUpdateRequest):
         wifi_ssid=request.wifi_ssid,
         wifi_password=request.wifi_password,
         hostname=request.hostname,
-        wifi_enabled=request.wifi_enabled
+        wifi_enabled=request.wifi_enabled,
+        background_color=request.background_color
     )
     await db.save_sensor_config(config)
 

@@ -76,6 +76,29 @@
             font-size: 10px;
             opacity: 0.5;
         }
+        .sensor-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 24px;
+            background: rgba(255,255,255,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #fff;
+            font-weight: 600;
+        }
+        .sensor-bar .sensor-name {
+            opacity: 0.9;
+        }
+        .sensor-bar .sensor-count {
+            position: absolute;
+            right: 8px;
+            opacity: 0.5;
+            font-size: 10px;
+        }
         .no-data {
             display: flex;
             align-items: center;
@@ -90,7 +113,10 @@
     <div class="container" id="container">
         <div class="no-data">Connecting...</div>
     </div>
-    <div class="status" id="status">--</div>
+    <div class="sensor-bar" id="sensorBar" style="display: none;">
+        <span class="sensor-name" id="sensorName">All Sensors</span>
+        <span class="sensor-count" id="sensorCount"></span>
+    </div>
 
     <script>
         const wsUrl = `ws://${window.location.host}/ws`;
@@ -98,6 +124,12 @@
 
         // Store latest readings per sensor
         const sensorReadings = new Map();
+        // Store sensor configs (for background colors)
+        const sensorConfigs = new Map();
+        // Currently selected sensor (null = all sensors averaged)
+        let selectedSensor = null;
+        // List of sensor IDs for cycling
+        let sensorList = [];
 
         // Metric definitions
         const metrics = [
@@ -113,7 +145,13 @@
             return 'poor';
         }
 
-        function calculateAverages() {
+        function getDisplayData() {
+            // If a specific sensor is selected, return its data
+            if (selectedSensor && sensorReadings.has(selectedSensor)) {
+                return sensorReadings.get(selectedSensor);
+            }
+
+            // Otherwise, calculate averages across all sensors
             const totals = {};
             const counts = {};
 
@@ -152,12 +190,66 @@
             return averages;
         }
 
+        function cycleSensor() {
+            sensorList = Array.from(sensorReadings.keys());
+            if (sensorList.length === 0) return;
+
+            if (selectedSensor === null) {
+                // Switch to first sensor
+                selectedSensor = sensorList[0];
+            } else {
+                const currentIndex = sensorList.indexOf(selectedSensor);
+                if (currentIndex === sensorList.length - 1) {
+                    // Last sensor, go back to "All"
+                    selectedSensor = null;
+                } else {
+                    // Next sensor
+                    selectedSensor = sensorList[currentIndex + 1];
+                }
+            }
+
+            updateBackground();
+            render();
+        }
+
+        function updateBackground() {
+            if (selectedSensor && sensorConfigs.has(selectedSensor)) {
+                const config = sensorConfigs.get(selectedSensor);
+                if (config.background_color) {
+                    document.body.style.background = config.background_color;
+                    return;
+                }
+            }
+            document.body.style.background = '#000';
+        }
+
+        function updateSensorBar() {
+            const sensorBar = document.getElementById('sensorBar');
+            const sensorName = document.getElementById('sensorName');
+            const sensorCount = document.getElementById('sensorCount');
+
+            if (sensorReadings.size > 0) {
+                sensorBar.style.display = 'flex';
+                if (selectedSensor) {
+                    const reading = sensorReadings.get(selectedSensor);
+                    const hostname = reading?.hostname || selectedSensor;
+                    sensorName.textContent = hostname;
+                } else {
+                    sensorName.textContent = 'All Sensors';
+                }
+                sensorCount.textContent = `${sensorReadings.size} sensor${sensorReadings.size !== 1 ? 's' : ''}`;
+            } else {
+                sensorBar.style.display = 'none';
+            }
+        }
+
         function render() {
             const container = document.getElementById('container');
-            const averages = calculateAverages();
+            const data = getDisplayData();
+            updateSensorBar();
 
             // Filter to only metrics with data
-            const activeMetrics = metrics.filter(m => averages[m.key] !== undefined);
+            const activeMetrics = metrics.filter(m => data[m.key] !== undefined);
 
             if (activeMetrics.length === 0) {
                 container.innerHTML = '<div class="no-data">Waiting for sensor data...</div>';
@@ -166,7 +258,7 @@
 
             let html = '';
             activeMetrics.forEach(m => {
-                let value = averages[m.key];
+                let value = data[m.key];
                 let norm;
                 let displayValue;
 
@@ -197,8 +289,8 @@
                     } else {
                         qualityClass = 'poor';
                     }
-                } else if (m.norm && averages[m.norm] !== undefined) {
-                    norm = averages[m.norm];
+                } else if (m.norm && data[m.norm] !== undefined) {
+                    norm = data[m.norm];
                     displayValue = Math.round(value);
                     qualityClass = getQualityClass(norm);
                 } else if (m.max) {
@@ -233,8 +325,18 @@
         function handleReading(data) {
             sensorReadings.set(data.device, data);
             render();
-            document.getElementById('status').textContent =
-                `${sensorReadings.size} sensor${sensorReadings.size !== 1 ? 's' : ''}`;
+        }
+
+        async function loadSensorConfig(device) {
+            try {
+                const response = await fetch(`/api/config/${device}`);
+                if (response.ok) {
+                    const config = await response.json();
+                    sensorConfigs.set(device, config);
+                }
+            } catch (e) {
+                console.error(`Failed to load config for ${device}:`, e);
+            }
         }
 
         function connect() {
@@ -264,16 +366,25 @@
             try {
                 const response = await fetch('/api/sensors');
                 const data = await response.json();
-                data.sensors.forEach(sensor => {
+                for (const sensor of data.sensors) {
                     if (sensor.last_reading) {
                         sensorReadings.set(sensor.device, sensor.last_reading);
                     }
-                });
+                    // Load config for background color
+                    await loadSensorConfig(sensor.device);
+                }
                 render();
             } catch (e) {
                 console.error('Failed to load initial data:', e);
             }
         }
+
+        // Click/tap anywhere to cycle through sensors
+        document.body.addEventListener('click', cycleSensor);
+        document.body.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            cycleSensor();
+        });
 
         loadInitialData();
         connect();
