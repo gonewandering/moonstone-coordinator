@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from app.models import SensorReading, SensorConfig
+from app.models import SensorReading, SensorConfig, WiFiNetwork
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,16 @@ class Database:
             await self._connection.execute("ALTER TABLE sensor_configs ADD COLUMN background_color TEXT DEFAULT ''")
         except Exception:
             pass  # Column already exists
+
+        # WiFi networks table for device WiFi configuration
+        await self._connection.execute("""
+            CREATE TABLE IF NOT EXISTS wifi_networks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ssid TEXT NOT NULL,
+                password TEXT,
+                priority INTEGER DEFAULT 0
+            )
+        """)
         await self._connection.commit()
 
     async def store_reading(self, reading: SensorReading):
@@ -187,3 +197,41 @@ class Database:
             )
             for row in rows
         ]
+
+    # WiFi network management
+    async def get_wifi_networks(self) -> list[WiFiNetwork]:
+        cursor = await self._connection.execute(
+            "SELECT * FROM wifi_networks ORDER BY priority DESC"
+        )
+        rows = await cursor.fetchall()
+        return [
+            WiFiNetwork(
+                id=row["id"],
+                ssid=row["ssid"],
+                password=row["password"] or "",
+                priority=row["priority"]
+            )
+            for row in rows
+        ]
+
+    async def add_wifi_network(self, network: WiFiNetwork) -> int:
+        cursor = await self._connection.execute(
+            "INSERT INTO wifi_networks (ssid, password, priority) VALUES (?, ?, ?)",
+            (network.ssid, network.password, network.priority)
+        )
+        await self._connection.commit()
+        return cursor.lastrowid
+
+    async def update_wifi_network(self, network: WiFiNetwork):
+        await self._connection.execute(
+            "UPDATE wifi_networks SET ssid = ?, password = ?, priority = ? WHERE id = ?",
+            (network.ssid, network.password, network.priority, network.id)
+        )
+        await self._connection.commit()
+
+    async def delete_wifi_network(self, network_id: int):
+        await self._connection.execute(
+            "DELETE FROM wifi_networks WHERE id = ?",
+            (network_id,)
+        )
+        await self._connection.commit()

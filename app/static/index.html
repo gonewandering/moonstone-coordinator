@@ -353,6 +353,122 @@
             font-size: 0.8rem;
         }
 
+        /* Device WiFi section */
+        .device-wifi-section {
+            margin-bottom: 2rem;
+        }
+        .wifi-panel {
+            background: #16213e;
+            border-radius: 1rem;
+            padding: 1.5rem;
+        }
+        .wifi-status-row {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #333;
+            flex-wrap: wrap;
+        }
+        .wifi-status-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .wifi-status-label {
+            color: #888;
+            font-size: 0.875rem;
+        }
+        .wifi-status-value {
+            font-weight: 600;
+        }
+        .wifi-status-value.connected {
+            color: #10b981;
+        }
+        .wifi-status-value.ap-mode {
+            color: #f59e0b;
+        }
+        .wifi-status-value.disconnected {
+            color: #ef4444;
+        }
+        .wifi-networks-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .wifi-networks-header h3 {
+            font-size: 1rem;
+            color: #fff;
+        }
+        .wifi-networks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .no-networks {
+            color: #666;
+            font-style: italic;
+            text-align: center;
+            padding: 1rem;
+        }
+        .wifi-network-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #0f0f23;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+        }
+        .wifi-network-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .wifi-network-ssid {
+            font-weight: 600;
+        }
+        .wifi-network-priority {
+            font-size: 0.75rem;
+            color: #888;
+        }
+        .wifi-network-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .btn-small {
+            padding: 0.4rem 0.75rem;
+            border: none;
+            border-radius: 0.4rem;
+            font-size: 0.8rem;
+            cursor: pointer;
+            background: #333;
+            color: #eee;
+        }
+        .btn-small:hover {
+            background: #444;
+        }
+        .btn-small.btn-primary {
+            background: #10b981;
+            color: #fff;
+        }
+        .btn-small.btn-primary:hover {
+            background: #0d9668;
+        }
+        .btn-small.btn-danger {
+            background: #ef4444;
+            color: #fff;
+        }
+        .btn-small.btn-danger:hover {
+            background: #dc2626;
+        }
+
+        /* Hide device wifi in kiosk mode */
+        body.kiosk .device-wifi-section {
+            display: none;
+        }
+
         /* Ultra-compact for very small screens */
         @media (max-height: 320px) {
             body.kiosk .sensor-cards {
@@ -394,10 +510,61 @@
         </div>
     </div>
 
+    <div class="device-wifi-section" id="deviceWifiSection">
+        <h2>Device WiFi</h2>
+        <div class="wifi-panel">
+            <div class="wifi-status-row">
+                <div class="wifi-status-info">
+                    <span class="wifi-status-label">Status:</span>
+                    <span class="wifi-status-value" id="deviceWifiStatus">Checking...</span>
+                </div>
+                <div class="wifi-status-info">
+                    <span class="wifi-status-label">IP:</span>
+                    <span class="wifi-status-value" id="deviceWifiIp">-</span>
+                </div>
+                <button class="btn-small" onclick="refreshWifiStatus()">Refresh</button>
+            </div>
+            <div class="wifi-networks-header">
+                <h3>Configured Networks</h3>
+                <button class="btn-small btn-primary" onclick="openAddNetworkModal()">+ Add Network</button>
+            </div>
+            <div class="wifi-networks-list" id="wifiNetworksList">
+                <div class="no-networks">Loading...</div>
+            </div>
+        </div>
+    </div>
+
     <div class="charts-section">
         <h2>Historical Data (Last Hour)</h2>
         <div class="chart-container">
             <canvas id="airQualityChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Add WiFi Network Modal -->
+    <div class="modal-overlay" id="addNetworkModal">
+        <div class="modal">
+            <h3>Add WiFi Network</h3>
+            <form id="addNetworkForm">
+                <div class="form-group">
+                    <label for="networkSsid">Network Name (SSID)</label>
+                    <input type="text" id="networkSsid" placeholder="WiFi network name" required>
+                </div>
+                <div class="form-group">
+                    <label for="networkPassword">Password</label>
+                    <input type="password" id="networkPassword" placeholder="WiFi password (optional)">
+                </div>
+                <div class="form-group">
+                    <label for="networkPriority">Priority</label>
+                    <input type="number" id="networkPriority" value="0" min="0" max="100">
+                    <small style="color: #666; font-size: 0.75rem;">Higher priority networks are tried first</small>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn-secondary" onclick="closeAddNetworkModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Add Network</button>
+                </div>
+                <div class="config-status" id="addNetworkStatus" style="display: none;"></div>
+            </form>
         </div>
     </div>
 
@@ -946,12 +1113,158 @@
             }
         }
 
+        // Device WiFi management functions
+        async function loadWifiStatus() {
+            try {
+                const response = await fetch('/api/device/wifi/status');
+                const status = await response.json();
+
+                const statusEl = document.getElementById('deviceWifiStatus');
+                const ipEl = document.getElementById('deviceWifiIp');
+
+                if (status.mode === 'ap') {
+                    statusEl.textContent = `AP Mode (${status.ap_ssid})`;
+                    statusEl.className = 'wifi-status-value ap-mode';
+                } else if (status.connected) {
+                    statusEl.textContent = `Connected to ${status.ssid}`;
+                    statusEl.className = 'wifi-status-value connected';
+                } else {
+                    statusEl.textContent = 'Disconnected';
+                    statusEl.className = 'wifi-status-value disconnected';
+                }
+
+                ipEl.textContent = status.ip_address || '-';
+            } catch (e) {
+                console.error('Failed to load WiFi status:', e);
+                document.getElementById('deviceWifiStatus').textContent = 'Error';
+            }
+        }
+
+        async function loadWifiNetworks() {
+            try {
+                const response = await fetch('/api/device/wifi/networks');
+                const data = await response.json();
+
+                const listEl = document.getElementById('wifiNetworksList');
+
+                if (data.networks.length === 0) {
+                    listEl.innerHTML = '<div class="no-networks">No networks configured. Add a network to enable WiFi connection.</div>';
+                    return;
+                }
+
+                let html = '';
+                data.networks.forEach(network => {
+                    html += `
+                        <div class="wifi-network-item">
+                            <div class="wifi-network-info">
+                                <span class="wifi-network-ssid">${network.ssid}</span>
+                                <span class="wifi-network-priority">Priority: ${network.priority}</span>
+                                ${network.has_password ? '<span style="color: #888; font-size: 0.75rem;">&#128274;</span>' : ''}
+                            </div>
+                            <div class="wifi-network-actions">
+                                <button class="btn-small btn-danger" onclick="deleteNetwork(${network.id}, '${network.ssid}')">Remove</button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                listEl.innerHTML = html;
+            } catch (e) {
+                console.error('Failed to load WiFi networks:', e);
+                document.getElementById('wifiNetworksList').innerHTML = '<div class="no-networks">Error loading networks</div>';
+            }
+        }
+
+        async function refreshWifiStatus() {
+            await loadWifiStatus();
+        }
+
+        function openAddNetworkModal() {
+            document.getElementById('networkSsid').value = '';
+            document.getElementById('networkPassword').value = '';
+            document.getElementById('networkPriority').value = '0';
+            document.getElementById('addNetworkStatus').style.display = 'none';
+            document.getElementById('addNetworkModal').classList.add('active');
+        }
+
+        function closeAddNetworkModal() {
+            document.getElementById('addNetworkModal').classList.remove('active');
+        }
+
+        document.getElementById('addNetworkForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const statusEl = document.getElementById('addNetworkStatus');
+            statusEl.style.display = 'block';
+            statusEl.className = 'config-status';
+            statusEl.textContent = 'Adding network...';
+
+            const network = {
+                ssid: document.getElementById('networkSsid').value,
+                password: document.getElementById('networkPassword').value,
+                priority: parseInt(document.getElementById('networkPriority').value) || 0
+            };
+
+            try {
+                const response = await fetch('/api/device/wifi/networks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(network)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    statusEl.className = 'config-status success';
+                    statusEl.textContent = result.message;
+                    setTimeout(() => {
+                        closeAddNetworkModal();
+                        loadWifiNetworks();
+                    }, 1000);
+                } else {
+                    statusEl.className = 'config-status error';
+                    statusEl.textContent = result.error || 'Failed to add network';
+                }
+            } catch (e) {
+                statusEl.className = 'config-status error';
+                statusEl.textContent = 'Network error - please try again';
+            }
+        });
+
+        async function deleteNetwork(id, ssid) {
+            if (!confirm(`Remove network "${ssid}"?`)) return;
+
+            try {
+                const response = await fetch(`/api/device/wifi/networks/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    loadWifiNetworks();
+                } else {
+                    alert('Failed to remove network');
+                }
+            } catch (e) {
+                alert('Network error - please try again');
+            }
+        }
+
+        // Close add network modal when clicking outside
+        document.getElementById('addNetworkModal').addEventListener('click', (e) => {
+            if (e.target.id === 'addNetworkModal') {
+                closeAddNetworkModal();
+            }
+        });
+
         // Initialize
         if (isKioskMode()) {
             document.body.classList.add('kiosk');
         } else {
             initChart();
             loadHistoricalData();
+            // Load device WiFi info (not in kiosk mode)
+            loadWifiStatus();
+            loadWifiNetworks();
         }
         loadSensors();
         connect();

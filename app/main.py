@@ -14,7 +14,7 @@ from app.bluetooth_manager import BluetoothManager
 from app.websocket_manager import WebSocketManager
 from app.wifi_manager import WiFiManager
 from app.database import Database
-from app.models import SensorReading, SensorConfig
+from app.models import SensorReading, SensorConfig, WiFiNetwork, DeviceWiFiStatus
 
 
 class ConfigUpdateRequest(BaseModel):
@@ -249,6 +249,144 @@ async def push_sensor_config(device: str):
         return {"success": True, "message": "Configuration pushed to sensor"}
     else:
         return JSONResponse(status_code=400, content={"error": "Failed to push configuration - sensor may not be connected"})
+
+
+# Device WiFi management endpoints
+@app.get("/api/device/wifi/networks")
+async def get_wifi_networks():
+    """Get list of configured WiFi networks"""
+    networks = await db.get_wifi_networks()
+    return {
+        "networks": [
+            {
+                "id": n.id,
+                "ssid": n.ssid,
+                "has_password": len(n.password) > 0,
+                "priority": n.priority
+            }
+            for n in networks
+        ]
+    }
+
+
+class WiFiNetworkRequest(BaseModel):
+    ssid: str
+    password: str = ""
+    priority: int = 0
+
+
+@app.post("/api/device/wifi/networks")
+async def add_wifi_network(request: WiFiNetworkRequest):
+    """Add a WiFi network to the list"""
+    network = WiFiNetwork(
+        ssid=request.ssid,
+        password=request.password,
+        priority=request.priority
+    )
+    network_id = await db.add_wifi_network(network)
+    return {"success": True, "id": network_id, "message": f"Added network '{request.ssid}'"}
+
+
+@app.put("/api/device/wifi/networks/{network_id}")
+async def update_wifi_network(network_id: int, request: WiFiNetworkRequest):
+    """Update a WiFi network"""
+    network = WiFiNetwork(
+        id=network_id,
+        ssid=request.ssid,
+        password=request.password,
+        priority=request.priority
+    )
+    await db.update_wifi_network(network)
+    return {"success": True, "message": f"Updated network '{request.ssid}'"}
+
+
+@app.delete("/api/device/wifi/networks/{network_id}")
+async def delete_wifi_network(network_id: int):
+    """Delete a WiFi network from the list"""
+    await db.delete_wifi_network(network_id)
+    return {"success": True, "message": "Network removed"}
+
+
+@app.get("/api/device/wifi/status")
+async def get_wifi_status():
+    """Get current device WiFi connection status"""
+    import subprocess
+    try:
+        # Check if connected via NetworkManager
+        result = subprocess.run(
+            ["nmcli", "-t", "-f", "ACTIVE,SSID,DEVICE", "connection", "show", "--active"],
+            capture_output=True, text=True, timeout=5
+        )
+
+        connected = False
+        ssid = ""
+        ip_address = ""
+        mode = "client"
+        ap_ssid = ""
+
+        for line in result.stdout.strip().split('\n'):
+            if line:
+                parts = line.split(':')
+                if len(parts) >= 2 and parts[0] == 'yes':
+                    connected = True
+                    ssid = parts[1] if len(parts) > 1 else ""
+
+        # Get IP address
+        if connected:
+            ip_result = subprocess.run(
+                ["hostname", "-I"],
+                capture_output=True, text=True, timeout=5
+            )
+            ip_address = ip_result.stdout.strip().split()[0] if ip_result.stdout.strip() else ""
+
+        # Check if running in AP mode
+        ap_result = subprocess.run(
+            ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"],
+            capture_output=True, text=True, timeout=5
+        )
+        for line in ap_result.stdout.strip().split('\n'):
+            if 'wifi-ap' in line or 'ap' in line.lower():
+                mode = "ap"
+                parts = line.split(':')
+                ap_ssid = parts[0] if parts else ""
+
+        return DeviceWiFiStatus(
+            connected=connected,
+            ssid=ssid,
+            ip_address=ip_address,
+            mode=mode,
+            ap_ssid=ap_ssid
+        )
+    except Exception as e:
+        logger.error(f"Error getting WiFi status: {e}")
+        return DeviceWiFiStatus()
+
+
+@app.post("/api/device/wifi/connect")
+async def trigger_wifi_connect():
+    """Trigger WiFi connection attempt using configured networks"""
+    import subprocess
+    try:
+        # Run the wifi-manager script
+        result = subprocess.run(
+            ["/opt/centerville/wifi-manager.sh", "connect"],
+            capture_output=True, text=True, timeout=30
+        )
+        return {
+            "success": result.returncode == 0,
+            "output": result.stdout,
+            "error": result.stderr if result.returncode != 0 else None
+        }
+    except FileNotFoundError:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "WiFi manager script not installed. Run setup-wifi-manager.sh"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
 
 
 @app.websocket("/ws")

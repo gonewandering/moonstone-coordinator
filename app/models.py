@@ -42,3 +42,18 @@ class SensorInfo(BaseModel):
     connected: bool
     last_reading: Optional[SensorReading] = None
     config: Optional[SensorConfig] = None
+
+
+class WiFiNetwork(BaseModel):
+    id: Optional[int] = None
+    ssid: str
+    password: str = ""
+    priority: int = 0  # Higher = try first
+
+
+class DeviceWiFiStatus(BaseModel):
+    connected: bool = False
+    ssid: str = ""
+    ip_address: str = ""
+    mode: str = "client"  # "client" or "ap"
+    ap_ssid: str = ""
