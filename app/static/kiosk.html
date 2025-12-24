@@ -16,7 +16,7 @@
         .container {
             display: flex;
             flex-direction: column;
-            height: 100%;
+            height: calc(100% - 32px);
             padding: 8px;
             gap: 6px;
         }
@@ -69,35 +69,37 @@
             color: #fff;
             margin-left: 4px;
         }
-        .status {
-            position: fixed;
-            bottom: 4px;
-            right: 8px;
-            font-size: 10px;
-            opacity: 0.5;
-        }
         .sensor-bar {
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
-            height: 24px;
-            background: rgba(255,255,255,0.15);
+            height: 32px;
+            background: rgba(0,0,0,0.5);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
-            color: #fff;
-            font-weight: 600;
+            gap: 12px;
+            padding: 0 12px;
         }
-        .sensor-bar .sensor-name {
-            opacity: 0.9;
+        .sensor-dot {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 2px solid transparent;
         }
-        .sensor-bar .sensor-count {
-            position: absolute;
-            right: 8px;
-            opacity: 0.5;
-            font-size: 10px;
+        .sensor-dot:hover {
+            transform: scale(1.1);
+        }
+        .sensor-dot.selected {
+            border-color: #fff;
+            box-shadow: 0 0 8px rgba(255,255,255,0.5);
+            transform: scale(1.2);
+        }
+        .sensor-dot.all {
+            background: linear-gradient(135deg, #4ade80, #60a5fa, #fb923c, #a78bfa);
         }
         .no-data {
             display: flex;
@@ -113,10 +115,7 @@
     <div class="container" id="container">
         <div class="no-data">Connecting...</div>
     </div>
-    <div class="sensor-bar" id="sensorBar" style="display: none;">
-        <span class="sensor-name" id="sensorName">All Sensors</span>
-        <span class="sensor-count" id="sensorCount"></span>
-    </div>
+    <div class="sensor-bar" id="sensorBar" style="display: none;"></div>
 
     <script>
         const wsUrl = `ws://${window.location.host}/ws`;
@@ -130,6 +129,23 @@
         let selectedSensor = null;
         // List of sensor IDs for cycling
         let sensorList = [];
+
+        // Sensor colors for dots
+        const sensorColors = [
+            '#4ade80',  // green
+            '#60a5fa',  // blue
+            '#fb923c',  // orange
+            '#a78bfa',  // purple
+            '#f472b6',  // pink
+            '#facc15',  // yellow
+            '#2dd4bf',  // teal
+            '#f87171',  // red
+        ];
+
+        function getSensorColor(device) {
+            const index = Array.from(sensorReadings.keys()).indexOf(device);
+            return sensorColors[index % sensorColors.length];
+        }
 
         // Metric definitions
         const metrics = [
@@ -225,19 +241,40 @@
 
         function updateSensorBar() {
             const sensorBar = document.getElementById('sensorBar');
-            const sensorName = document.getElementById('sensorName');
-            const sensorCount = document.getElementById('sensorCount');
 
             if (sensorReadings.size > 0) {
                 sensorBar.style.display = 'flex';
-                if (selectedSensor) {
-                    const reading = sensorReadings.get(selectedSensor);
-                    const hostname = reading?.hostname || selectedSensor;
-                    sensorName.textContent = hostname;
-                } else {
-                    sensorName.textContent = 'All Sensors';
-                }
-                sensorCount.textContent = `${sensorReadings.size} sensor${sensorReadings.size !== 1 ? 's' : ''}`;
+
+                let html = '';
+
+                // "All sensors" dot (multicolor gradient)
+                const allSelected = selectedSensor === null ? 'selected' : '';
+                html += `<div class="sensor-dot all ${allSelected}" data-sensor="all" title="All Sensors"></div>`;
+
+                // Individual sensor dots
+                sensorReadings.forEach((reading, device) => {
+                    const color = getSensorColor(device);
+                    const isSelected = selectedSensor === device ? 'selected' : '';
+                    const hostname = reading?.hostname || device;
+                    html += `<div class="sensor-dot ${isSelected}" data-sensor="${device}" style="background: ${color};" title="${hostname}"></div>`;
+                });
+
+                sensorBar.innerHTML = html;
+
+                // Add click handlers to dots
+                sensorBar.querySelectorAll('.sensor-dot').forEach(dot => {
+                    dot.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const sensor = dot.dataset.sensor;
+                        if (sensor === 'all') {
+                            selectedSensor = null;
+                        } else {
+                            selectedSensor = sensor;
+                        }
+                        updateBackground();
+                        render();
+                    });
+                });
             } else {
                 sensorBar.style.display = 'none';
             }
@@ -343,11 +380,11 @@
             ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
-                document.getElementById('status').textContent = 'Connected';
+                console.log('WebSocket connected');
             };
 
             ws.onclose = () => {
-                document.getElementById('status').textContent = 'Disconnected';
+                console.log('WebSocket disconnected, reconnecting...');
                 setTimeout(connect, 2000);
             };
 
