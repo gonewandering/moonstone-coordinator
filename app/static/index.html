@@ -464,6 +464,60 @@
             background: #dc2626;
         }
 
+        /* Update section */
+        .update-section {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #333;
+        }
+        .update-section h3 {
+            font-size: 1rem;
+            color: #fff;
+            margin-bottom: 0.5rem;
+        }
+        .update-description {
+            font-size: 0.875rem;
+            color: #888;
+            margin-bottom: 1rem;
+        }
+        .btn-update {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            background: #f59e0b;
+            color: #000;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .btn-update:hover {
+            background: #d97706;
+        }
+        .btn-update:disabled {
+            background: #666;
+            color: #999;
+            cursor: not-allowed;
+        }
+        .update-status {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+        }
+        .update-status.loading {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+        }
+        .update-status.success {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        .update-status.error {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
         /* Hide device wifi in kiosk mode */
         body.kiosk .device-wifi-section {
             display: none;
@@ -511,7 +565,7 @@
     </div>
 
     <div class="device-wifi-section" id="deviceWifiSection">
-        <h2>Device WiFi</h2>
+        <h2>Device Settings</h2>
         <div class="wifi-panel">
             <div class="wifi-status-row">
                 <div class="wifi-status-info">
@@ -530,6 +584,15 @@
             </div>
             <div class="wifi-networks-list" id="wifiNetworksList">
                 <div class="no-networks">Loading...</div>
+            </div>
+
+            <div class="update-section">
+                <h3>System Update</h3>
+                <p class="update-description">Pull latest code from GitHub and restart the coordinator.</p>
+                <button class="btn-update" id="updateBtn" onclick="triggerUpdate()">
+                    Update &amp; Reboot
+                </button>
+                <div class="update-status" id="updateStatus" style="display: none;"></div>
             </div>
         </div>
     </div>
@@ -1255,6 +1318,83 @@
                 closeAddNetworkModal();
             }
         });
+
+        // System update function
+        async function triggerUpdate() {
+            const btn = document.getElementById('updateBtn');
+            const statusEl = document.getElementById('updateStatus');
+
+            if (!confirm('This will pull the latest code and reboot the device. Continue?')) {
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Updating...';
+            statusEl.style.display = 'block';
+            statusEl.className = 'update-status loading';
+            statusEl.textContent = 'Pulling latest code from GitHub...';
+
+            try {
+                const response = await fetch('/api/device/update', {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    statusEl.className = 'update-status success';
+                    statusEl.textContent = result.message + ' Page will reload when device comes back online.';
+
+                    // Try to reconnect after reboot
+                    setTimeout(() => {
+                        statusEl.textContent = 'Waiting for device to come back online...';
+                        waitForReboot();
+                    }, 5000);
+                } else {
+                    statusEl.className = 'update-status error';
+                    statusEl.textContent = result.error + (result.details ? ': ' + result.details : '');
+                    btn.disabled = false;
+                    btn.textContent = 'Update & Reboot';
+                }
+            } catch (e) {
+                statusEl.className = 'update-status error';
+                statusEl.textContent = 'Network error - device may be rebooting...';
+
+                // Try to reconnect
+                setTimeout(waitForReboot, 5000);
+            }
+        }
+
+        async function waitForReboot() {
+            const statusEl = document.getElementById('updateStatus');
+            let attempts = 0;
+            const maxAttempts = 30;
+
+            const checkConnection = async () => {
+                attempts++;
+                try {
+                    const response = await fetch('/api/status', { cache: 'no-store' });
+                    if (response.ok) {
+                        statusEl.className = 'update-status success';
+                        statusEl.textContent = 'Device is back online! Reloading...';
+                        setTimeout(() => window.location.reload(), 1000);
+                        return;
+                    }
+                } catch (e) {
+                    // Still offline
+                }
+
+                if (attempts < maxAttempts) {
+                    statusEl.textContent = `Waiting for device to come back online... (${attempts}/${maxAttempts})`;
+                    setTimeout(checkConnection, 3000);
+                } else {
+                    statusEl.className = 'update-status error';
+                    statusEl.textContent = 'Device did not come back online. Please refresh manually.';
+                }
+            };
+
+            checkConnection();
+        }
 
         // Initialize
         if (isKioskMode()) {

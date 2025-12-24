@@ -312,43 +312,42 @@ async def get_wifi_status():
     """Get current device WiFi connection status"""
     import subprocess
     try:
-        # Check if connected via NetworkManager
-        result = subprocess.run(
-            ["nmcli", "-t", "-f", "ACTIVE,SSID,DEVICE", "connection", "show", "--active"],
-            capture_output=True, text=True, timeout=5
-        )
-
         connected = False
         ssid = ""
         ip_address = ""
         mode = "client"
         ap_ssid = ""
 
-        for line in result.stdout.strip().split('\n'):
-            if line:
-                parts = line.split(':')
-                if len(parts) >= 2 and parts[0] == 'yes':
-                    connected = True
-                    ssid = parts[1] if len(parts) > 1 else ""
-
-        # Get IP address
-        if connected:
-            ip_result = subprocess.run(
-                ["hostname", "-I"],
-                capture_output=True, text=True, timeout=5
-            )
-            ip_address = ip_result.stdout.strip().split()[0] if ip_result.stdout.strip() else ""
-
-        # Check if running in AP mode
-        ap_result = subprocess.run(
-            ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"],
+        # Check wlan0 device state
+        device_result = subprocess.run(
+            ["nmcli", "-t", "-f", "GENERAL.STATE,GENERAL.CONNECTION", "device", "show", "wlan0"],
             capture_output=True, text=True, timeout=5
         )
-        for line in ap_result.stdout.strip().split('\n'):
-            if 'wifi-ap' in line or 'ap' in line.lower():
+
+        for line in device_result.stdout.strip().split('\n'):
+            if line.startswith('GENERAL.STATE:') and 'connected' in line.lower():
+                connected = True
+            elif line.startswith('GENERAL.CONNECTION:'):
+                ssid = line.split(':', 1)[1] if ':' in line else ""
+
+        # Get IP address
+        ip_result = subprocess.run(
+            ["hostname", "-I"],
+            capture_output=True, text=True, timeout=5
+        )
+        if ip_result.stdout.strip():
+            ip_address = ip_result.stdout.strip().split()[0]
+
+        # Check if running in AP mode (hotspot)
+        if connected and ssid:
+            conn_result = subprocess.run(
+                ["nmcli", "-t", "-f", "802-11-wireless.mode", "connection", "show", ssid],
+                capture_output=True, text=True, timeout=5
+            )
+            if 'ap' in conn_result.stdout.lower():
                 mode = "ap"
-                parts = line.split(':')
-                ap_ssid = parts[0] if parts else ""
+                ap_ssid = ssid
+                ssid = ""
 
         return DeviceWiFiStatus(
             connected=connected,
@@ -360,6 +359,69 @@ async def get_wifi_status():
     except Exception as e:
         logger.error(f"Error getting WiFi status: {e}")
         return DeviceWiFiStatus()
+
+
+@app.post("/api/device/update")
+async def update_and_reboot():
+    """Pull latest code from GitHub, install dependencies, and reboot"""
+    import subprocess
+    import os
+
+    project_dir = Path(__file__).parent.parent
+
+    try:
+        # Pull latest from GitHub
+        pull_result = subprocess.run(
+            ["git", "pull", "origin", "main"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+
+        if pull_result.returncode != 0:
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": "Git pull failed",
+                    "details": pull_result.stderr
+                }
+            )
+
+        # Install/update dependencies
+        pip_result = subprocess.run(
+            ["pip", "install", "-e", "."],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+
+        # Schedule reboot in 2 seconds (so we can return response)
+        subprocess.Popen(
+            ["sudo", "reboot"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+
+        return {
+            "success": True,
+            "git_output": pull_result.stdout,
+            "pip_output": pip_result.stdout,
+            "message": "Update complete. Rebooting now..."
+        }
+
+    except subprocess.TimeoutExpired:
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Update timed out"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
 
 
 @app.post("/api/device/wifi/connect")
