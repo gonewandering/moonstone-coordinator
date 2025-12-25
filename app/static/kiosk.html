@@ -20,6 +20,26 @@
         ::-webkit-scrollbar {
             display: none;
         }
+        /* Prevent text selection */
+        * {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Debug click indicator */
+        .click-dot {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            background: red;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            opacity: 0.8;
+        }
         .container {
             display: flex;
             flex-direction: column;
@@ -305,6 +325,7 @@
         <div class="no-data">Connecting...</div>
     </div>
     <div class="sensor-bar" id="sensorBar"></div>
+    <div class="click-dot" id="clickDot" style="display: none;"></div>
 
     <!-- WiFi Info Screen -->
     <div class="wifi-screen" id="wifiScreen">
@@ -551,51 +572,6 @@
             html += `</div>`;
 
             sensorBar.innerHTML = html;
-
-            // Add click handlers to dots
-            sensorBar.querySelectorAll('.sensor-dot').forEach(dot => {
-                dot.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    const sensor = dot.dataset.sensor;
-                    if (sensor === 'all') {
-                        selectedSensor = null;
-                    } else {
-                        selectedSensor = sensor;
-                    }
-                    updateBackground();
-                    render();
-                });
-            });
-
-            // Add click handlers to buttons
-            const settingsBtn = document.getElementById('settingsBtn');
-            if (settingsBtn) {
-                settingsBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    showSettingsScreen();
-                });
-                settingsBtn.addEventListener('touchend', (e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    showSettingsScreen();
-                });
-            }
-
-            const wifiBtn = document.getElementById('wifiBtn');
-            if (wifiBtn) {
-                wifiBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    showWifiScreen();
-                });
-                wifiBtn.addEventListener('touchend', (e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    showWifiScreen();
-                });
-            }
 
             // Update WiFi button state
             updateWifiButton();
@@ -965,13 +941,90 @@
             }
         }
 
-        // Click/tap on the metrics container to cycle through sensors
-        const container = document.getElementById('container');
-        container.addEventListener('click', cycleSensor);
-        container.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            cycleSensor();
-        });
+        // Debug: show click position
+        function showClickDot(x, y) {
+            const dot = document.getElementById('clickDot');
+            dot.style.left = x + 'px';
+            dot.style.top = y + 'px';
+            dot.style.display = 'block';
+            setTimeout(() => { dot.style.display = 'none'; }, 500);
+        }
+
+        // Unified touch/click handler
+        function handleInteraction(e) {
+            let x, y;
+            if (e.type === 'touchend' || e.type === 'touchstart') {
+                if (e.changedTouches && e.changedTouches.length > 0) {
+                    x = e.changedTouches[0].clientX;
+                    y = e.changedTouches[0].clientY;
+                }
+            } else {
+                x = e.clientX;
+                y = e.clientY;
+            }
+
+            // Show debug dot
+            if (x !== undefined && y !== undefined) {
+                showClickDot(x, y);
+            }
+
+            const target = e.target;
+
+            // Check what was clicked
+            if (target.closest('#settingsBtn') || target.id === 'settingsBtn') {
+                e.preventDefault();
+                e.stopPropagation();
+                showSettingsScreen();
+                return;
+            }
+
+            if (target.closest('#wifiBtn') || target.id === 'wifiBtn') {
+                e.preventDefault();
+                e.stopPropagation();
+                showWifiScreen();
+                return;
+            }
+
+            if (target.closest('.sensor-dot')) {
+                e.preventDefault();
+                e.stopPropagation();
+                const sensor = target.closest('.sensor-dot').dataset.sensor;
+                if (sensor === 'all') {
+                    selectedSensor = null;
+                } else {
+                    selectedSensor = sensor;
+                }
+                updateBackground();
+                render();
+                return;
+            }
+
+            if (target.closest('.wifi-close-btn')) {
+                e.preventDefault();
+                e.stopPropagation();
+                hideWifiScreen();
+                hideSettingsScreen();
+                return;
+            }
+
+            if (target.closest('#kioskUpdateBtn')) {
+                e.preventDefault();
+                e.stopPropagation();
+                triggerKioskUpdate();
+                return;
+            }
+
+            // If clicking on the container (metrics area), cycle sensors
+            if (target.closest('#container')) {
+                e.preventDefault();
+                cycleSensor();
+                return;
+            }
+        }
+
+        // Use touchstart for more responsive touch handling
+        document.addEventListener('touchstart', handleInteraction, { passive: false });
+        document.addEventListener('click', handleInteraction);
 
         updateSensorBar();  // Show bar immediately with WiFi button
         loadInitialData();
