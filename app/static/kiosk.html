@@ -36,15 +36,10 @@
             height: 100%;
             transition: width 0.5s ease, background 0.5s ease;
         }
-        /* Each metric gets its own bright color */
-        .bar.pm2_5 { background: #4ade80; }      /* bright green */
-        .bar.gas_raw { background: #60a5fa; }    /* bright blue */
-        .bar.temp { background: #fb923c; }       /* bright orange */
-        .bar.humidity { background: #a78bfa; }   /* bright purple */
-
-        /* Warning/danger states override the base color */
-        .bar.moderate { background: #facc15; }   /* yellow */
-        .bar.poor { background: #f87171; }       /* red */
+        /* All bars are white */
+        .bar {
+            background: rgba(255, 255, 255, 0.9);
+        }
         .content {
             position: relative;
             z-index: 1;
@@ -99,7 +94,187 @@
             transform: scale(1.2);
         }
         .sensor-dot.all {
-            background: linear-gradient(135deg, #4ade80, #60a5fa, #fb923c, #a78bfa);
+            background: transparent;
+            border: 2px solid rgba(255,255,255,0.5);
+        }
+        .sensor-dot.all.selected {
+            border-color: #fff;
+        }
+        .bar-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255,255,255,0.2);
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .bar-buttons {
+            position: absolute;
+            right: 8px;
+            display: flex;
+            gap: 8px;
+        }
+        .wifi-btn.connected {
+            background: rgba(16, 185, 129, 0.4);
+        }
+        .wifi-btn.disconnected {
+            background: rgba(239, 68, 68, 0.4);
+        }
+        .wifi-btn.ap-mode {
+            background: rgba(245, 158, 11, 0.4);
+        }
+        .settings-btn {
+            font-size: 16px;
+        }
+
+        /* WiFi info screen overlay */
+        .wifi-screen {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            z-index: 100;
+            flex-direction: column;
+            padding: 20px;
+        }
+        .wifi-screen.active {
+            display: flex;
+        }
+        .wifi-screen-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .wifi-screen-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+        }
+        .wifi-close-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255,255,255,0.2);
+            color: #fff;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .wifi-info-card {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .wifi-info-label {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+        .wifi-info-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+            word-break: break-all;
+        }
+        .wifi-status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .wifi-status-badge.connected {
+            background: rgba(16, 185, 129, 0.3);
+            color: #4ade80;
+        }
+        .wifi-status-badge.disconnected {
+            background: rgba(239, 68, 68, 0.3);
+            color: #f87171;
+        }
+        .wifi-status-badge.ap-mode {
+            background: rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+        }
+        .wifi-instructions {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: auto;
+        }
+        .wifi-instructions-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+        .wifi-instructions-text {
+            font-size: 13px;
+            color: #aaa;
+            line-height: 1.5;
+        }
+
+        /* Settings screen */
+        .settings-screen {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            z-index: 100;
+            flex-direction: column;
+            padding: 20px;
+        }
+        .settings-screen.active {
+            display: flex;
+        }
+        .update-btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #f59e0b;
+            color: #000;
+            margin-bottom: 12px;
+        }
+        .update-btn:hover {
+            background: #d97706;
+        }
+        .update-btn:disabled {
+            background: #444;
+            color: #888;
+            cursor: not-allowed;
+        }
+        .update-status-kiosk {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 16px;
+            font-size: 14px;
+            color: #aaa;
+            text-align: center;
+        }
+        .update-status-kiosk.loading {
+            color: #60a5fa;
+        }
+        .update-status-kiosk.success {
+            color: #4ade80;
+        }
+        .update-status-kiosk.error {
+            color: #f87171;
         }
         .no-data {
             display: flex;
@@ -115,7 +290,41 @@
     <div class="container" id="container">
         <div class="no-data">Connecting...</div>
     </div>
-    <div class="sensor-bar" id="sensorBar" style="display: none;"></div>
+    <div class="sensor-bar" id="sensorBar"></div>
+
+    <!-- WiFi Info Screen -->
+    <div class="wifi-screen" id="wifiScreen">
+        <div class="wifi-screen-header">
+            <span class="wifi-screen-title">Network Info</span>
+            <button class="wifi-close-btn" onclick="hideWifiScreen()">&times;</button>
+        </div>
+        <div id="wifiScreenContent">
+            <div class="wifi-info-card">
+                <div class="wifi-info-label">Status</div>
+                <div class="wifi-info-value" id="wifiScreenStatus">Checking...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Screen -->
+    <div class="settings-screen" id="settingsScreen">
+        <div class="wifi-screen-header">
+            <span class="wifi-screen-title">Settings</span>
+            <button class="wifi-close-btn" onclick="hideSettingsScreen()">&times;</button>
+        </div>
+        <div class="wifi-info-card">
+            <div class="wifi-info-label">System Update</div>
+            <div class="wifi-info-value" style="font-size: 14px; color: #aaa; margin-bottom: 16px;">
+                Pull latest code from GitHub and restart
+            </div>
+            <button class="update-btn" id="kioskUpdateBtn" onclick="triggerKioskUpdate()">
+                Update &amp; Reboot
+            </button>
+            <div class="update-status-kiosk" id="kioskUpdateStatus">
+                Tap the button above to check for updates
+            </div>
+        </div>
+    </div>
 
     <script>
         const wsUrl = `ws://${window.location.host}/ws`;
@@ -130,8 +339,8 @@
         // List of sensor IDs for cycling
         let sensorList = [];
 
-        // Sensor colors for dots
-        const sensorColors = [
+        // Default sensor colors (used when generating new colors)
+        const defaultColors = [
             '#4ade80',  // green
             '#60a5fa',  // blue
             '#fb923c',  // orange
@@ -143,8 +352,70 @@
         ];
 
         function getSensorColor(device) {
+            // Use configured color if available
+            if (sensorConfigs.has(device)) {
+                const config = sensorConfigs.get(device);
+                if (config.background_color) {
+                    return config.background_color;
+                }
+            }
+            // Fallback to default color based on index
             const index = Array.from(sensorReadings.keys()).indexOf(device);
-            return sensorColors[index % sensorColors.length];
+            return defaultColors[index % defaultColors.length];
+        }
+
+        function getNextAvailableColor() {
+            // Find a color not already used by configured sensors
+            const usedColors = new Set();
+            sensorConfigs.forEach(config => {
+                if (config.background_color) {
+                    usedColors.add(config.background_color.toLowerCase());
+                }
+            });
+
+            for (const color of defaultColors) {
+                if (!usedColors.has(color.toLowerCase())) {
+                    return color;
+                }
+            }
+            // All colors used, generate a random one
+            const hue = Math.floor(Math.random() * 360);
+            return `hsl(${hue}, 70%, 60%)`;
+        }
+
+        async function ensureSensorColor(device) {
+            // Check if sensor already has a color configured
+            if (sensorConfigs.has(device)) {
+                const config = sensorConfigs.get(device);
+                if (config.background_color) {
+                    return; // Already has a color
+                }
+            }
+
+            // Generate and save a new color
+            const newColor = getNextAvailableColor();
+
+            try {
+                const response = await fetch(`/api/config/${device}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        background_color: newColor
+                    })
+                });
+
+                if (response.ok) {
+                    // Update local config cache
+                    if (sensorConfigs.has(device)) {
+                        sensorConfigs.get(device).background_color = newColor;
+                    } else {
+                        sensorConfigs.set(device, { background_color: newColor });
+                    }
+                    console.log(`Assigned color ${newColor} to sensor ${device}`);
+                }
+            } catch (e) {
+                console.error(`Failed to save color for ${device}:`, e);
+            }
         }
 
         // Metric definitions
@@ -229,24 +500,23 @@
         }
 
         function updateBackground() {
-            if (selectedSensor && sensorConfigs.has(selectedSensor)) {
-                const config = sensorConfigs.get(selectedSensor);
-                if (config.background_color) {
-                    document.body.style.background = config.background_color;
-                    return;
-                }
+            if (selectedSensor) {
+                // Use the sensor's color (from config or generated)
+                const color = getSensorColor(selectedSensor);
+                document.body.style.background = color;
+            } else {
+                // "All sensors" view uses black background
+                document.body.style.background = '#000';
             }
-            document.body.style.background = '#000';
         }
 
         function updateSensorBar() {
             const sensorBar = document.getElementById('sensorBar');
+            sensorBar.style.display = 'flex';
+
+            let html = '';
 
             if (sensorReadings.size > 0) {
-                sensorBar.style.display = 'flex';
-
-                let html = '';
-
                 // "All sensors" dot (multicolor gradient)
                 const allSelected = selectedSensor === null ? 'selected' : '';
                 html += `<div class="sensor-dot all ${allSelected}" data-sensor="all" title="All Sensors"></div>`;
@@ -258,26 +528,33 @@
                     const hostname = reading?.hostname || device;
                     html += `<div class="sensor-dot ${isSelected}" data-sensor="${device}" style="background: ${color};" title="${hostname}"></div>`;
                 });
-
-                sensorBar.innerHTML = html;
-
-                // Add click handlers to dots
-                sensorBar.querySelectorAll('.sensor-dot').forEach(dot => {
-                    dot.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const sensor = dot.dataset.sensor;
-                        if (sensor === 'all') {
-                            selectedSensor = null;
-                        } else {
-                            selectedSensor = sensor;
-                        }
-                        updateBackground();
-                        render();
-                    });
-                });
-            } else {
-                sensorBar.style.display = 'none';
             }
+
+            // Always add buttons container
+            html += `<div class="bar-buttons">`;
+            html += `<button class="bar-btn settings-btn" onclick="showSettingsScreen(event)">&#9881;</button>`;
+            html += `<button class="bar-btn wifi-btn" id="wifiBtn" onclick="showWifiScreen(event)">&#8226;</button>`;
+            html += `</div>`;
+
+            sensorBar.innerHTML = html;
+
+            // Add click handlers to dots
+            sensorBar.querySelectorAll('.sensor-dot').forEach(dot => {
+                dot.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const sensor = dot.dataset.sensor;
+                    if (sensor === 'all') {
+                        selectedSensor = null;
+                    } else {
+                        selectedSensor = sensor;
+                    }
+                    updateBackground();
+                    render();
+                });
+            });
+
+            // Update WiFi button state
+            updateWifiButton();
         }
 
         function render() {
@@ -342,12 +619,9 @@
 
                 const barWidth = Math.min(Math.max(norm * 100, 2), 100);
 
-                // Use metric-specific color, but override with warning colors if needed
-                const barClass = qualityClass === 'good' ? m.key : qualityClass;
-
                 html += `
                     <div class="metric">
-                        <div class="bar ${barClass}" style="width: ${barWidth}%"></div>
+                        <div class="bar" style="width: ${barWidth}%"></div>
                         <div class="content">
                             <span class="label">${m.label}</span>
                             <span class="value">${displayValue}<span class="unit">${m.unit}</span></span>
@@ -360,7 +634,14 @@
         }
 
         function handleReading(data) {
+            const isNewSensor = !sensorReadings.has(data.device);
             sensorReadings.set(data.device, data);
+
+            // Load config for new sensors (will auto-generate color if needed)
+            if (isNewSensor && !sensorConfigs.has(data.device)) {
+                loadSensorConfig(data.device);
+            }
+
             render();
         }
 
@@ -370,6 +651,12 @@
                 if (response.ok) {
                     const config = await response.json();
                     sensorConfigs.set(device, config);
+
+                    // Ensure sensor has a color, generate one if not
+                    if (!config.background_color) {
+                        await ensureSensorColor(device);
+                        updateSensorBar(); // Refresh to show new color
+                    }
                 }
             } catch (e) {
                 console.error(`Failed to load config for ${device}:`, e);
@@ -398,6 +685,226 @@
             };
         }
 
+        // WiFi status tracking
+        let wifiStatus = null;
+
+        async function loadWifiStatus() {
+            try {
+                const response = await fetch('/api/device/wifi/status');
+                wifiStatus = await response.json();
+                updateWifiButton();
+            } catch (e) {
+                console.error('Failed to load WiFi status:', e);
+                wifiStatus = { connected: false, mode: 'unknown' };
+                updateWifiButton();
+            }
+        }
+
+        function updateWifiButton() {
+            const btn = document.getElementById('wifiBtn');
+            if (!btn || !wifiStatus) return;
+
+            btn.classList.remove('connected', 'disconnected', 'ap-mode');
+
+            if (wifiStatus.mode === 'ap') {
+                btn.classList.add('ap-mode');
+                btn.innerHTML = '&#9737;'; // AP symbol
+            } else if (wifiStatus.connected) {
+                btn.classList.add('connected');
+                btn.innerHTML = '&#9679;'; // Filled circle
+            } else {
+                btn.classList.add('disconnected');
+                btn.innerHTML = '&#9675;'; // Empty circle
+            }
+        }
+
+        function showWifiScreen(e) {
+            e.stopPropagation();
+            renderWifiScreen();
+            document.getElementById('wifiScreen').classList.add('active');
+        }
+
+        function hideWifiScreen() {
+            document.getElementById('wifiScreen').classList.remove('active');
+        }
+
+        function showSettingsScreen(e) {
+            e.stopPropagation();
+            document.getElementById('settingsScreen').classList.add('active');
+        }
+
+        function hideSettingsScreen() {
+            document.getElementById('settingsScreen').classList.remove('active');
+        }
+
+        async function triggerKioskUpdate() {
+            const btn = document.getElementById('kioskUpdateBtn');
+            const statusEl = document.getElementById('kioskUpdateStatus');
+
+            if (!confirm('This will update and reboot the device. Continue?')) {
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Updating...';
+            statusEl.className = 'update-status-kiosk loading';
+            statusEl.textContent = 'Pulling latest code from GitHub...';
+
+            try {
+                const response = await fetch('/api/device/update', {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    statusEl.className = 'update-status-kiosk success';
+                    statusEl.textContent = result.message;
+
+                    setTimeout(() => {
+                        statusEl.textContent = 'Waiting for device to restart...';
+                        waitForKioskReboot();
+                    }, 3000);
+                } else {
+                    statusEl.className = 'update-status-kiosk error';
+                    statusEl.textContent = result.error || 'Update failed';
+                    btn.disabled = false;
+                    btn.textContent = 'Update & Reboot';
+                }
+            } catch (e) {
+                statusEl.className = 'update-status-kiosk loading';
+                statusEl.textContent = 'Device is rebooting...';
+                setTimeout(waitForKioskReboot, 3000);
+            }
+        }
+
+        async function waitForKioskReboot() {
+            const statusEl = document.getElementById('kioskUpdateStatus');
+            let attempts = 0;
+            const maxAttempts = 30;
+
+            const checkConnection = async () => {
+                attempts++;
+                try {
+                    const response = await fetch('/api/status', { cache: 'no-store' });
+                    if (response.ok) {
+                        statusEl.className = 'update-status-kiosk success';
+                        statusEl.textContent = 'Update complete! Reloading...';
+                        setTimeout(() => window.location.reload(), 1000);
+                        return;
+                    }
+                } catch (e) {
+                    // Still offline
+                }
+
+                if (attempts < maxAttempts) {
+                    statusEl.textContent = `Waiting for device... (${attempts}/${maxAttempts})`;
+                    setTimeout(checkConnection, 3000);
+                } else {
+                    statusEl.className = 'update-status-kiosk error';
+                    statusEl.textContent = 'Could not reconnect. Please refresh manually.';
+                }
+            };
+
+            checkConnection();
+        }
+
+        function renderWifiScreen() {
+            const content = document.getElementById('wifiScreenContent');
+
+            if (!wifiStatus) {
+                content.innerHTML = `
+                    <div class="wifi-info-card">
+                        <div class="wifi-info-label">Status</div>
+                        <div class="wifi-info-value">Loading...</div>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+
+            if (wifiStatus.mode === 'ap') {
+                // AP Mode - show setup instructions
+                html = `
+                    <div class="wifi-info-card">
+                        <div class="wifi-info-label">Status</div>
+                        <div class="wifi-info-value">
+                            <span class="wifi-status-badge ap-mode">Access Point Mode</span>
+                        </div>
+                    </div>
+                    <div class="wifi-info-card">
+                        <div class="wifi-info-label">Network Name</div>
+                        <div class="wifi-info-value">${wifiStatus.ap_ssid || 'Centerville-Setup'}</div>
+                    </div>
+                    ${wifiStatus.ip_address ? `
+                    <div class="wifi-info-card">
+                        <div class="wifi-info-label">IP Address</div>
+                        <div class="wifi-info-value">${wifiStatus.ip_address}</div>
+                    </div>
+                    ` : ''}
+                    <div class="wifi-instructions">
+                        <div class="wifi-instructions-title">To configure WiFi:</div>
+                        <div class="wifi-instructions-text">
+                            1. Connect to "${wifiStatus.ap_ssid || 'Centerville-Setup'}" on your phone or computer<br>
+                            2. Open a browser and go to <strong>http://${wifiStatus.ip_address || '192.168.4.1'}</strong><br>
+                            3. Add your WiFi network in Device Settings
+                        </div>
+                    </div>
+                `;
+            } else if (wifiStatus.connected) {
+                // Connected to WiFi
+                html = `
+                    <div class="wifi-info-card">
+                        <div class="wifi-info-label">Status</div>
+                        <div class="wifi-info-value">
+                            <span class="wifi-status-badge connected">Connected</span>
+                        </div>
+                    </div>
+                    <div class="wifi-info-card">
+                        <div class="wifi-info-label">Network</div>
+                        <div class="wifi-info-value">${wifiStatus.ssid || 'Unknown'}</div>
+                    </div>
+                    <div class="wifi-info-card">
+                        <div class="wifi-info-label">IP Address</div>
+                        <div class="wifi-info-value">${wifiStatus.ip_address || 'Unknown'}</div>
+                    </div>
+                    <div class="wifi-instructions">
+                        <div class="wifi-instructions-title">Web Interface</div>
+                        <div class="wifi-instructions-text">
+                            Access settings at:<br>
+                            <strong>http://${wifiStatus.ip_address}</strong>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Disconnected
+                html = `
+                    <div class="wifi-info-card">
+                        <div class="wifi-info-label">Status</div>
+                        <div class="wifi-info-value">
+                            <span class="wifi-status-badge disconnected">Disconnected</span>
+                        </div>
+                    </div>
+                    ${wifiStatus.ip_address ? `
+                    <div class="wifi-info-card">
+                        <div class="wifi-info-label">IP Address</div>
+                        <div class="wifi-info-value">${wifiStatus.ip_address}</div>
+                    </div>
+                    ` : ''}
+                    <div class="wifi-instructions">
+                        <div class="wifi-instructions-title">No network connection</div>
+                        <div class="wifi-instructions-text">
+                            The device is not connected to a WiFi network.
+                            If AP mode is enabled, look for "Centerville-Setup" network.
+                        </div>
+                    </div>
+                `;
+            }
+
+            content.innerHTML = html;
+        }
+
         // Load initial data
         async function loadInitialData() {
             try {
@@ -423,8 +930,13 @@
             cycleSensor();
         });
 
+        updateSensorBar();  // Show bar immediately with WiFi button
         loadInitialData();
+        loadWifiStatus();
         connect();
+
+        // Refresh WiFi status periodically
+        setInterval(loadWifiStatus, 30000);
     </script>
 </body>
 </html>
