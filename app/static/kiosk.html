@@ -23,12 +23,13 @@
         .container {
             display: flex;
             flex-direction: column;
-            height: calc(100% - 32px);
+            height: calc(100% - 56px);
             width: 100%;
             max-width: 100vw;
             padding: 8px;
             gap: 6px;
             overflow: hidden;
+            cursor: pointer;
         }
         .metric {
             flex: 1;
@@ -81,46 +82,46 @@
             right: 0;
             width: 100%;
             max-width: 100vw;
-            height: 32px;
+            height: 56px;
             background: rgba(0,0,0,0.5);
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 12px;
-            padding: 0 50px 0 12px;
+            gap: 16px;
+            padding: 0 120px;
             overflow: hidden;
         }
         .sensor-dot {
-            width: 18px;
-            height: 18px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
-            border: 2px solid transparent;
+            border: 3px solid transparent;
         }
         .sensor-dot:hover {
             transform: scale(1.1);
         }
         .sensor-dot.selected {
             border-color: #fff;
-            box-shadow: 0 0 8px rgba(255,255,255,0.5);
+            box-shadow: 0 0 12px rgba(255,255,255,0.5);
             transform: scale(1.2);
         }
         .sensor-dot.all {
             background: transparent;
-            border: 2px solid rgba(255,255,255,0.5);
+            border: 3px solid rgba(255,255,255,0.5);
         }
         .sensor-dot.all.selected {
             border-color: #fff;
         }
         .bar-btn {
-            width: 24px;
-            height: 24px;
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
             border: none;
             background: rgba(255,255,255,0.2);
             color: #fff;
-            font-size: 14px;
+            font-size: 28px;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -128,7 +129,7 @@
         }
         .bar-buttons {
             position: absolute;
-            right: 8px;
+            left: 8px;
             display: flex;
             gap: 8px;
         }
@@ -142,7 +143,7 @@
             background: rgba(245, 158, 11, 0.4);
         }
         .settings-btn {
-            font-size: 16px;
+            font-size: 32px;
         }
 
         /* WiFi info screen overlay */
@@ -936,19 +937,10 @@
             }
         }
 
-        // Click/tap anywhere to cycle through sensors (except on buttons/sensor bar)
-        document.body.addEventListener('click', (e) => {
-            // Don't cycle if clicking on buttons or sensor bar
-            if (e.target.closest('.sensor-bar') || e.target.closest('button')) {
-                return;
-            }
-            cycleSensor();
-        });
-        document.body.addEventListener('touchend', (e) => {
-            // Don't cycle if tapping on buttons or sensor bar
-            if (e.target.closest('.sensor-bar') || e.target.closest('button')) {
-                return;
-            }
+        // Click/tap on the metrics container to cycle through sensors
+        const container = document.getElementById('container');
+        container.addEventListener('click', cycleSensor);
+        container.addEventListener('touchend', (e) => {
             e.preventDefault();
             cycleSensor();
         });
