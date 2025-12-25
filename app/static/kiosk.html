@@ -546,8 +546,8 @@
 
             // Always add buttons container
             html += `<div class="bar-buttons">`;
-            html += `<button class="bar-btn settings-btn" onclick="showSettingsScreen(event)">&#9881;</button>`;
-            html += `<button class="bar-btn wifi-btn" id="wifiBtn" onclick="showWifiScreen(event)">&#8226;</button>`;
+            html += `<button class="bar-btn settings-btn" id="settingsBtn">&#9881;</button>`;
+            html += `<button class="bar-btn wifi-btn" id="wifiBtn">&#8226;</button>`;
             html += `</div>`;
 
             sensorBar.innerHTML = html;
@@ -556,6 +556,7 @@
             sensorBar.querySelectorAll('.sensor-dot').forEach(dot => {
                 dot.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    e.preventDefault();
                     const sensor = dot.dataset.sensor;
                     if (sensor === 'all') {
                         selectedSensor = null;
@@ -566,6 +567,35 @@
                     render();
                 });
             });
+
+            // Add click handlers to buttons
+            const settingsBtn = document.getElementById('settingsBtn');
+            if (settingsBtn) {
+                settingsBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    showSettingsScreen();
+                });
+                settingsBtn.addEventListener('touchend', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    showSettingsScreen();
+                });
+            }
+
+            const wifiBtn = document.getElementById('wifiBtn');
+            if (wifiBtn) {
+                wifiBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    showWifiScreen();
+                });
+                wifiBtn.addEventListener('touchend', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    showWifiScreen();
+                });
+            }
 
             // Update WiFi button state
             updateWifiButton();
@@ -732,8 +762,7 @@
             }
         }
 
-        function showWifiScreen(e) {
-            e.stopPropagation();
+        function showWifiScreen() {
             renderWifiScreen();
             document.getElementById('wifiScreen').classList.add('active');
         }
@@ -742,8 +771,7 @@
             document.getElementById('wifiScreen').classList.remove('active');
         }
 
-        function showSettingsScreen(e) {
-            e.stopPropagation();
+        function showSettingsScreen() {
             document.getElementById('settingsScreen').classList.add('active');
         }
 
