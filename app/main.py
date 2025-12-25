@@ -98,12 +98,18 @@ app = FastAPI(
 
 @app.get("/")
 async def root():
-    return FileResponse(STATIC_DIR / "index.html")
+    return FileResponse(
+        STATIC_DIR / "index.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+    )
 
 
 @app.get("/kiosk")
 async def kiosk():
-    return FileResponse(STATIC_DIR / "kiosk.html")
+    return FileResponse(
+        STATIC_DIR / "kiosk.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+    )
 
 
 @app.get("/api/status")
