@@ -218,6 +218,8 @@ exec chromium \
     --disable-translate \
     --disable-features=TranslateUI \
     --overscroll-history-navigation=0 \
+    --hide-scrollbars \
+    --disable-cache \
     "http://localhost:8000/kiosk"
 KIOSKEOF
 
